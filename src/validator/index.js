@@ -1,3 +1,7 @@
+const empty=v=>v===null||v===undefined||v==='';
+const dateSort=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)?v:null;
+const uniq=a=>new Set(a.filter(v=>!empty(v)).map(v=>String(v))).size;
+const nulls=(records,keys)=>records.reduce((n,r)=>n+keys.reduce((m,k)=>m+(empty(r[k])?1:0),0),0);
 export function validate(source,results,profile='demand'){
  const errors=[],warnings=[];
  const records=results.records;
@@ -19,8 +23,8 @@ export function validate(source,results,profile='demand'){
    const missing=records.filter(r=>{
      const skuMissing=profile==='demand' ? !(r.sku_id||r.sku_name) : !r.sku_id;
      const timeMissing=profile==='demand' ? !(r.date||r.period_start) : !r.date;
-     const qtyMissing=r.demand_qty===null||r.demand_qty===undefined||r.demand_qty==='';
-     if(profile==='inventory') return skuMissing||timeMissing||qtyMissing||r.inventory_on_hand===''||r.inventory_on_hand==null||r.inbound_qty===''||r.inbound_qty==null||!r.location_name||!r.unit;
+     const qtyMissing=empty(r.demand_qty);
+     if(profile==='inventory') return skuMissing||timeMissing||qtyMissing||empty(r.inventory_on_hand)||empty(r.inbound_qty)||!r.location_name||!r.unit;
      return skuMissing||timeMissing||qtyMissing;
    }).length;
    if(missing)errors.push(missing+' records contain missing required values');
@@ -35,6 +39,26 @@ export function validate(source,results,profile='demand'){
  const sourceQtyIndex=Object.keys(source.mapping).find(k=>source.mapping[k]==='demand_qty');
  const originalSum=sourceQtyIndex===undefined?null:source.data.reduce((s,r)=>s+(Number.isFinite(Number(String(r[sourceQtyIndex]??'').replace(/,/g,'')))?Number(String(r[sourceQtyIndex]).replace(/,/g,'')):0),0);
  const transformedSum=sum(records);
- if(originalSum!==null&&profile!=='generic'&&Math.abs(originalSum-transformedSum)>1e-8)errors.push('Quantity totals changed unexpectedly');
- return {errors,warnings,stats:{inputRows,outputRows,changedCells:results.changes.length,originalSum,transformedSum}};
+ if(originalSum!==null&&profile!=='generic'&&!results.wide&&Math.abs(originalSum-transformedSum)>1e-8)errors.push('Quantity totals changed unexpectedly');
+
+ const sourceSkuIndex=Object.keys(source.mapping).find(k=>['sku_id','sku_name'].includes(source.mapping[k]));
+ const sourceDateIndex=Object.keys(source.mapping).find(k=>['date','period_start'].includes(source.mapping[k]));
+ const sourceMappedIndexes=Object.keys(source.mapping).filter(k=>source.mapping[k]).map(Number);
+ const inputUniqueSku=sourceSkuIndex===undefined?null:uniq(source.data.map(r=>r[Number(sourceSkuIndex)]));
+ const outputUniqueSku=uniq(records.map(r=>r.sku_id||r.sku_name));
+ const inputNullCount=sourceMappedIndexes.length?source.data.reduce((n,r)=>n+sourceMappedIndexes.reduce((m,i)=>m+(empty(r[i])?1:0),0),0):null;
+ const outputMappedKeys=[...new Set(Object.values(source.mapping).filter(Boolean))];
+ const outputNullCount=outputMappedKeys.length?nulls(records,outputMappedKeys):null;
+ const sourceDates=sourceDateIndex===undefined?[]:source.data.map(r=>dateSort(String(r[Number(sourceDateIndex)]??''))).filter(Boolean).sort();
+ const outputDates=records.map(r=>dateSort(r.date||r.period_start)).filter(Boolean).sort();
+ const inputDateMin=sourceDates[0]||null,inputDateMax=sourceDates.at(-1)||null;
+ const outputDateMin=outputDates[0]||null,outputDateMax=outputDates.at(-1)||null;
+ if(inputUniqueSku!==null&&outputUniqueSku<inputUniqueSku&&profile!=='generic')warnings.push('Unique SKU count decreased from '+inputUniqueSku+' to '+outputUniqueSku);
+ if(inputNullCount!==null&&outputNullCount!==null&&outputNullCount>inputNullCount)warnings.push('Mapped-field null count increased from '+inputNullCount+' to '+outputNullCount);
+
+ return {errors,warnings,stats:{
+   inputRows,outputRows,changedCells:results.changes.length,originalSum,transformedSum,
+   inputUniqueSku,outputUniqueSku,inputNullCount,outputNullCount,
+   inputDateMin,inputDateMax,outputDateMin,outputDateMax
+ }};
 }
