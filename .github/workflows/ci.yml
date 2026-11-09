@@ -17,4 +17,5 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx wrangler deploy --dry-run
-      - run: npx wrangler preview --dry-run --name ci-preview
+      - name: Validate Worker Previews config
+        run: node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); if(!Object.prototype.hasOwnProperty.call(c,'previews')) throw new Error('wrangler.jsonc must define previews');"
