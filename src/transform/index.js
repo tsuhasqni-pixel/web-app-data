@@ -1,4 +1,5 @@
 import {fields} from '../detector/index.js';
+import {wideToLong} from './wide.js';
 const dateValue=v=>{
  if(v instanceof Date&&!isNaN(v))return v.toISOString().slice(0,10);
  const s=String(v??'').trim().normalize('NFKC');
@@ -9,13 +10,11 @@ const dateValue=v=>{
  return [y,String(mo).padStart(2,'0'),String(d).padStart(2,'0')].join('-');
 };
 export function transform(detected,mapping,options={}){
- const {trim=true,width=true,dates=true,sourceFile='',sourceSheet=''}=options;
+ const {trim=true,width=true,dates=true,sourceFile='',sourceSheet='',orientation='auto',wideValueField='demand_qty'}=options;
+ const effectiveOrientation=orientation==='auto'?detected.orientation:orientation;
+ if(effectiveOrientation==='wide')return wideToLong(detected,mapping,{valueField:wideValueField,sourceFile,sourceSheet});
  const changes=[];const records=detected.data.map((row,index)=>{
-   const out={
-     source_file:sourceFile,
-     source_sheet:sourceSheet,
-     source_row:detected.headerRow+index+2
-   };
+   const out={source_file:sourceFile,source_sheet:sourceSheet,source_row:detected.headerRow+index+2};
    for(const [i,field] of Object.entries(mapping)){
      if(!fields.includes(field))continue;
      let value=row[Number(i)]??'';
@@ -23,7 +22,7 @@ export function transform(detected,mapping,options={}){
      if(typeof value==='string'&&trim)value=value.trim();
      if(typeof value==='string'&&width)value=value.normalize('NFKC');
      if(['date','period_start','period_end'].includes(field)&&dates)value=dateValue(value);
-     if(['demand_qty','inventory_on_hand','inbound_qty','outbound_qty','lead_time_days'].includes(field)&&value!==''){
+     if(['demand_qty','inventory_on_hand','inbound_qty','outbound_qty','lead_time_days','amount','debit','credit'].includes(field)&&value!==''){
        const n=Number(String(value).replace(/,/g,''));if(Number.isFinite(n))value=n;
      }
      out[field]=value;
