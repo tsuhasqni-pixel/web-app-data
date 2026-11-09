@@ -11,7 +11,8 @@
     "preview": "wrangler preview"
   },
   "dependencies": {
-    "read-excel-file": "^5.8.6"
+    "read-excel-file": "^5.8.6",
+    "fflate": "^0.8.2"
   },
   "devDependencies": {
     "vite": "^6.3.5",
