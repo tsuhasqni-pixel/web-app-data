@@ -3,6 +3,8 @@ import {parseCSV,toCSV} from '../src/parser/csv.js';
 import {detect} from '../src/detector/index.js';
 import {transform} from '../src/transform/index.js';
 import {aggregateRecords,buildBalanceSheet} from '../src/aggregate/index.js';
+import {diagnoseCleaning,cleanRawTable} from '../src/cleaner/index.js';
+import {cleanWorkbook,BATCH_LIMITS} from '../src/batch/index.js';
 import {validate} from '../src/validator/index.js';
 import {exportCSV} from '../src/exporter/index.js';
 import {scenarios} from './fixtures/scenarios.js';
@@ -61,6 +63,33 @@ describe('local-first data workflow',()=>{
    expect(d.mapping[0]).toBe('account_name');
    expect(d.mapping[1]).toBe('amount');
    expect(Object.values(d.mapping)).not.toContain('statement_section');
+ });
+ it('free diagnosis explains blanks and safe cleaning candidates without filling blanks',()=>{
+   const rows=[['SKU','Value'],[' A ','１'],['','2'],['','2']];
+   const d=diagnoseCleaning(rows,{headerRow:0});
+   expect(d.blanks).toBeGreaterThan(0);
+   expect(d.outerWhitespace).toBeGreaterThan(0);
+   expect(d.fullWidth).toBeGreaterThan(0);
+   const cleaned=cleanRawTable(rows,{headerRow:0,trim:true,width:true,removeExactDuplicates:false});
+   expect(cleaned.rows[0][0]).toBe('A');
+   expect(cleaned.rows[1][0]).toBe('');
+   expect(cleaned.outputRows).toBe(3);
+ });
+ it('Pro batch cleaning can process multiple sheets without deleting duplicates by default',()=>{
+   const sheets=[
+     {name:'A',sourceFile:'book.xlsx',rows:[['SKU'],[' A '],[' A ']]},
+     {name:'B',sourceFile:'book.xlsx',rows:[['SKU'],['Ｂ']]}
+   ];
+   const out=cleanWorkbook(sheets,[0,1],{trim:true,width:true,removeExactDuplicates:false});
+   expect(out).toHaveLength(2);
+   expect(out[0].cleaned.outputRows).toBe(2);
+   expect(out[1].cleaned.rows[0][0]).toBe('B');
+   expect(BATCH_LIMITS.maxSheets).toBeGreaterThanOrEqual(2);
+ });
+ it('duplicate deletion only happens after explicit opt-in',()=>{
+   const rows=[['x'],['A'],['A']];
+   expect(cleanRawTable(rows,{headerRow:0,removeExactDuplicates:false}).outputRows).toBe(2);
+   expect(cleanRawTable(rows,{headerRow:0,removeExactDuplicates:true}).outputRows).toBe(1);
  });
  it('exports inventory without silently synthesizing fields',()=>{expect(exportCSV([{sku_id:'A',demand_qty:4}], 'inventory')).toContain('date,sku_id,demand_qty,inventory_on_hand')});
  it('keeps all twenty synthetic scenario fixtures parseable by detector',()=>{
