@@ -1,4 +1,4 @@
-import readXlsxFile from 'read-excel-file/browser';
+import readXlsxFile from 'read-excel-file';
 import { parseCSV } from './csv.js';
 export async function readWorkbook(file){
   if(!file)throw new Error('Select a file');
