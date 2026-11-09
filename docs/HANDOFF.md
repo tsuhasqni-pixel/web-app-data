@@ -4,7 +4,7 @@ Target GitHub account: `tsuhasqni-pixel`; repo: `web-app-data`.
 The sibling `web-app-stock` is empty as of the initial audit and MUST NOT be modified by this PR.
 
 ## Implemented
-Browser-only CSV/TSV and XLSX parsing, manual header choice, rule-based column mapping, safe normalization, source provenance, before/after, validation, DemandScope/Inventory CSV export, downloaded JSON recipes with exact header matching, 20 synthetic regression scenarios, D1 schema-only migration, Cloudflare assets configuration, and CI dry-run validation.
+Browser-only CSV/TSV and XLSX parsing, manual header choice, Auto/Long/Wide orientation selection with explicit wide-to-long expansion, rule-based column mapping, safe normalization, source provenance, before/after, validation, user-configured aggregation, balance-sheet layout preview with explicit account classification, DemandScope/Inventory/Generic CSV export, Recipe v2 persistence, 20 synthetic regression scenarios, D1 schema-only migration, Cloudflare assets configuration, and CI dry-run validation.
 
 ## Verification still required
 Run `npm install && npm test && npm run build` and inspect GitHub Actions on the exact branch head. Test uploaded CSV and XLSX manually in Chrome, Edge, Safari. Do not declare production-ready.
