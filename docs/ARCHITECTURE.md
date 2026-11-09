@@ -19,3 +19,6 @@ Cloudflare Workers/Static Assets and D1 for user-owned recipes and subscriptions
 - Normalize: canonical mapping + safe export.
 - Aggregate: user-selected group keys and numeric field with sum/average/count/min/max.
 - Balance-sheet layout helper: explicit account-to-section assignment, section totals, unclassified accounts, and balance difference. It does not invent accounting classifications or auto-correct imbalances.
+
+## Product workspaces
+The UI is separated into four top-level tabs: Free Diagnosis, Pro Cleaning, Aggregation, and Balance-sheet Layout. Free is explanatory/diagnostic; Pro Cleaning is the multi-sheet operational batch. See PLANS.md.
