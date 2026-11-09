@@ -6,13 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler preview"
   },
   "dependencies": {
     "read-excel-file": "^5.8.6"
   },
   "devDependencies": {
     "vite": "^6.3.5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wrangler": "^4.102.0"
   }
 }
