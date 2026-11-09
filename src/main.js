@@ -37,7 +37,7 @@ function render(){
  el('td',analysis.confidence[i]?Math.round(analysis.confidence[i]*100)+'%':'手動確認',row);});
  const r=section('4. 整形ルール / Transform');
  [['trim','前後空白を除く'],['width','文字幅を統一 (NFKC)'],['dates','日付表記を統一']].forEach(([key,text])=>{const label=el('label',undefined,r,'check');const c=el('input',undefined,label);c.type='checkbox';c.checked=options[key];c.addEventListener('change',()=>{options[key]=c.checked;result=null;report=null;});el('span',text,label);});
- button('変換プレビューと品質検査を実行',()=>{result=transform(analysis,analysis.mapping,options);report=validate(analysis,result,profile);render();},r);
+ button('変換プレビューと品質検査を実行',()=>{result=transform(analysis,analysis.mapping,{...options,sourceFile:selected.sourceFile||'',sourceSheet:selected.name||''});report=validate(analysis,result,profile);render();},r);
  const p=section('5. 出力形式 / Validate & Export');
  select([['demand','DemandScope (long CSV)'],['inventory','Inventory Manager CSV'],['generic','Generic Clean CSV']],profile,v=>{profile=v;if(result)report=validate(analysis,result,profile);render();},p);
  if(!result){el('p','上のボタンで確認用プレビューを生成してください。',p);return;}
