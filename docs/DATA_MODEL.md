@@ -14,7 +14,7 @@ Core fields:
 
 ## MVP required profiles
 
-DemandScope long export requires `date`, `sku_id`, `demand_qty`.
+DemandScope long export requires `demand_qty` plus `sku_id` or `sku_name`, and `date` or `period_start`.
 
 Inventory export currently exposes `date,sku_id,demand_qty,inventory_on_hand,inbound_qty,location_name,unit`. This is provisional until the sibling inventory application's exact schema is confirmed. Do not enable direct API import before that confirmation.
 
