@@ -9,17 +9,21 @@ const dateValue=v=>{
  return [y,String(mo).padStart(2,'0'),String(d).padStart(2,'0')].join('-');
 };
 export function transform(detected,mapping,options={}){
- const {trim=true,width=true,dates=true}=options;
+ const {trim=true,width=true,dates=true,sourceFile='',sourceSheet=''}=options;
  const changes=[];const records=detected.data.map((row,index)=>{
-   const out={source_row:detected.headerRow+index+2};
+   const out={
+     source_file:sourceFile,
+     source_sheet:sourceSheet,
+     source_row:detected.headerRow+index+2
+   };
    for(const [i,field] of Object.entries(mapping)){
      if(!fields.includes(field))continue;
      let value=row[Number(i)]??'';
      const before=value;
      if(typeof value==='string'&&trim)value=value.trim();
      if(typeof value==='string'&&width)value=value.normalize('NFKC');
-     if(field==='date'&&dates)value=dateValue(value);
-     if(['demand_qty','inventory_on_hand','inbound_qty','outbound_qty'].includes(field)&&value!==''){
+     if(['date','period_start','period_end'].includes(field)&&dates)value=dateValue(value);
+     if(['demand_qty','inventory_on_hand','inbound_qty','outbound_qty','lead_time_days'].includes(field)&&value!==''){
        const n=Number(String(value).replace(/,/g,''));if(Number.isFinite(n))value=n;
      }
      out[field]=value;
@@ -29,4 +33,4 @@ export function transform(detected,mapping,options={}){
  });
  return {records,changes};
 }
-export const exportFields={demand:['date','sku_id','demand_qty'],inventory:['date','sku_id','demand_qty','inventory_on_hand','inbound_qty','location_name','unit'],generic:fields};
+export const exportFields={inventory:['date','sku_id','demand_qty','inventory_on_hand','inbound_qty','location_name','unit'],generic:fields};
