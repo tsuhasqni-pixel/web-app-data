@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "inventory-schema-v1",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "sku_id": {
+      "type": "string"
+    },
+    "demand_qty": {
+      "type": "number"
+    },
+    "inventory_on_hand": {
+      "type": "number"
+    },
+    "inbound_qty": {
+      "type": "number"
+    },
+    "location_name": {
+      "type": "string"
+    },
+    "unit": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "date",
+    "sku_id",
+    "demand_qty"
+  ],
+  "additionalProperties": true
+}
