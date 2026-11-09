@@ -2,6 +2,7 @@ import {describe,it,expect} from 'vitest';
 import {parseCSV,toCSV} from '../src/parser/csv.js';
 import {detect} from '../src/detector/index.js';
 import {transform} from '../src/transform/index.js';
+import {aggregateRecords,buildBalanceSheet} from '../src/aggregate/index.js';
 import {validate} from '../src/validator/index.js';
 import {exportCSV} from '../src/exporter/index.js';
 import {scenarios} from './fixtures/scenarios.js';
@@ -34,6 +35,32 @@ describe('local-first data workflow',()=>{
    expect(bt.records[1].demand_qty).toBe(0);
    const ret=detect(scenarios.find(x=>x.name==='18_return_data').rows);
    expect(transform(ret,ret.mapping).records[0].demand_qty).toBe(-1);
+ });
+ it('converts user-selected wide format into long records',()=>{
+   const d=detect([['SKU','2026-01-01','2026-01-02'],['A','3','4']]);
+   d.mapping={0:'sku_id'};
+   const t=transform(d,d.mapping,{orientation:'wide',wideValueField:'demand_qty'});
+   expect(t.records).toHaveLength(2);
+   expect(t.records[0]).toMatchObject({sku_id:'A',date:'2026-01-01',demand_qty:3});
+   expect(t.records[1]).toMatchObject({sku_id:'A',date:'2026-01-02',demand_qty:4});
+ });
+ it('aggregates selected dimensions without changing source records',()=>{
+   const rows=[{account_name:'Cash',amount:100},{account_name:'Cash',amount:50},{account_name:'Debt',amount:80}];
+   const agg=aggregateRecords(rows,{groupBy:['account_name'],valueField:'amount',method:'sum'});
+   expect(agg.find(x=>x.account_name==='Cash').sum_amount).toBe(150);
+   expect(rows).toHaveLength(3);
+ });
+ it('builds a balance-sheet preview only from explicit assignments',()=>{
+   const rows=[{account_name:'Cash',amount:100},{account_name:'Debt',amount:60},{account_name:'Capital',amount:40},{account_name:'Unknown',amount:5}];
+   const sheet=buildBalanceSheet(rows,{assignments:{Cash:'current_assets',Debt:'current_liabilities',Capital:'equity'}});
+   expect(sheet.totals).toMatchObject({assets:100,liabilities:60,equity:40,difference:0});
+   expect(sheet.unclassified).toEqual([{account:'Unknown',amount:5}]);
+ });
+ it('recognizes accounting columns without guessing statement section',()=>{
+   const d=detect([['勘定科目','金額'],['現金','100']]);
+   expect(d.mapping[0]).toBe('account_name');
+   expect(d.mapping[1]).toBe('amount');
+   expect(Object.values(d.mapping)).not.toContain('statement_section');
  });
  it('exports inventory without silently synthesizing fields',()=>{expect(exportCSV([{sku_id:'A',demand_qty:4}], 'inventory')).toContain('date,sku_id,demand_qty,inventory_on_hand')});
  it('keeps all twenty synthetic scenario fixtures parseable by detector',()=>{
