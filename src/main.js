@@ -7,6 +7,7 @@ import {cleanWorkbook,BATCH_LIMITS} from './batch/index.js';
 import {aggregateRecords,buildBalanceSheet,balanceSheetSections} from './aggregate/index.js';
 import {exportCSV,exportObjectRows,exportBalanceSheet,saveText} from './exporter/index.js';
 import {buildCleaningZip,saveBlob} from './exporter/batch.js';
+import {buildRecipe,validateRecipe} from './recipe/index.js';
 import './style.css';
 
 const app=document.querySelector('#app');
@@ -68,6 +69,8 @@ function renderFree(){
  const s=section('無料クリーニング診断',wrap);
  const stats=el('div',undefined,s,'metric-grid');
  [['データ行',d.rows],['列',d.columns],['空欄',d.blanks],['前後空白',d.outerWhitespace],['全角/半角候補',d.fullWidth],['完全重複候補',d.duplicateRows]].forEach(([k,v])=>{const card=el('div',undefined,stats,'metric-card');el('strong',String(v),card);el('span',k,card);});
+ const typeRows=(analysis.columnProfiles||[]).map(x=>({column:x.name||('column_'+(x.index+1)),type:x.inferredType,numeric_rate:Math.round(x.numericRate*100)+'%',date_rate:Math.round(x.dateRate*100)+'%',non_null_rate:Math.round(x.nonNullRate*100)+'%'}));
+ el('h3','列型の推定',s);renderTable(s,typeRows,30);
  if(!d.suggestions.length)el('p','主要なクリーニング候補は検出されませんでした。',s,'status');
  d.suggestions.forEach(x=>{const card=el('div',undefined,s,'diagnostic-card '+(x.kind==='safe'?'safe':'review'));el('strong',x.title+'（'+x.count+'件）',card);el('p',x.reason,card);el('small',x.kind==='safe'?'安全寄りの候補：Before/Afterで確認':'要確認：意味を推測して自動変更しない',card);});
  const demo=cleanRawTable(selected.rows,{headerRow:analysis.headerRow,trim:true,width:true,removeExactDuplicates:false});
@@ -114,8 +117,8 @@ function renderMappingWorkspace(parent){
  const effective=orientation==='auto'?analysis.orientation:orientation;
  el('p','自動判定 '+(analysis.orientation==='wide'?'横持ち':'縦持ち')+' / 使用 '+(effective==='wide'?'横持ち':'縦持ち'),s,'status');
  if(effective==='wide'){el('span','横持ちの値: ',s);select([['demand_qty','需要・販売数量'],['inventory_on_hand','在庫'],['inbound_qty','入庫'],['outbound_qty','出庫'],['amount','金額']],wideValueField,v=>{wideValueField=v;clearResult();render();},s);}
- const table=el('table',undefined,s);const tr=el('tr',undefined,table);['元の列名','出力フィールド','推定'].forEach(t=>el('th',t,tr));
- analysis.header.forEach((h,i)=>{const row=el('tr',undefined,table);el('td',String(h??'(空欄)'),row);const cell=el('td',undefined,row);select([['','使用しない'],...fields.map(x=>[x,x])],analysis.mapping[i]||'',v=>{analysis.mapping[i]=v;clearResult();},cell);el('td',analysis.confidence[i]?Math.round(analysis.confidence[i]*100)+'%':'手動',row);});
+ const table=el('table',undefined,s);const tr=el('tr',undefined,table);['元の列名','推定型','出力フィールド','Mapping推定'].forEach(t=>el('th',t,tr));
+ analysis.header.forEach((h,i)=>{const row=el('tr',undefined,table);el('td',String(h??'(空欄)'),row);el('td',analysis.columnProfiles?.[i]?.inferredType||'unknown',row);const cell=el('td',undefined,row);select([['','使用しない'],...fields.map(x=>[x,x])],analysis.mapping[i]||'',v=>{analysis.mapping[i]=v;clearResult();},cell);el('td',analysis.confidence[i]?Math.round(analysis.confidence[i]*100)+'%':'手動',row);});
  checkbox(s,'前後空白を除く',options.trim,v=>{options.trim=v;clearResult();});
  checkbox(s,'文字幅を統一',options.width,v=>{options.width=v;clearResult();});
  checkbox(s,'日付表記を統一',options.dates,v=>{options.dates=v;clearResult();});
@@ -124,7 +127,17 @@ function renderMappingWorkspace(parent){
 function renderPreview(parent){
  if(!result)return;
  const s=section('変換プレビュー',parent);
- el('p','入力 '+report.stats.inputRows+' 行 / 変換後 '+report.stats.outputRows+' 行 / 変更 '+report.stats.changedCells+' セル',s,'status');renderTable(s,result.records,15);
+ el('p','入力 '+report.stats.inputRows+' 行 / 変換後 '+report.stats.outputRows+' 行 / 変更 '+report.stats.changedCells+' セル',s,'status');
+ const guard=[
+   {metric:'SKU数',before:report.stats.inputUniqueSku??'未検出',after:report.stats.outputUniqueSku??'未検出'},
+   {metric:'数量合計',before:report.stats.originalSum??'未検出',after:report.stats.transformedSum??'未検出'},
+   {metric:'Null数',before:report.stats.inputNullCount??'未検出',after:report.stats.outputNullCount??'未検出'},
+   {metric:'日付最小',before:report.stats.inputDateMin??'未検出',after:report.stats.outputDateMin??'未検出'},
+   {metric:'日付最大',before:report.stats.inputDateMax??'未検出',after:report.stats.outputDateMax??'未検出'}
+ ];
+ el('h3','Data Loss Guard',s);renderTable(s,guard,10);
+ [...report.errors.map(x=>'エラー: '+x),...report.warnings.map(x=>'注意: '+x)].forEach(t=>el('p',t,s,t.startsWith('エラー')?'error':'warning'));
+ renderTable(s,result.records,15);
  if(result.changes.length){el('h3','Before / After',s);renderTable(s,result.changes,15);}
 }
 function renderPro(){
@@ -159,7 +172,30 @@ function renderBalance(){
 function renderRecipe(){
  if(!sheets.length||workspaceTab==='free')return;
  const s=section('Recipe / 再利用');
- button('現在の設定をRecipe保存',()=>{const out={schema_version:3,source_headers:analysis.header,header_row:analysis.headerRow+1,mapping:analysis.mapping,options,profile,orientation,wideValueField,aggregateConfig,bsConfig,batchOptions};saveText('data-shaper-recipe.json',JSON.stringify(out,null,2),'application/json');},s);
+ button('現在の設定をRecipe保存',()=>{
+   const out=buildRecipe({sheets,analysis,options,profile,orientation,wideValueField,aggregateConfig,bsConfig,batchOptions});
+   saveText('data-shaper-recipe.json',JSON.stringify(out,null,2),'application/json');
+ },s);
+ const input=el('input',undefined,s);input.type='file';input.accept='.json';input.setAttribute('aria-label','Recipe JSONを読み込む');
+ input.addEventListener('change',async()=>{
+   try{
+     const recipe=JSON.parse(await input.files[0].text());
+     validateRecipe(recipe,{sheets,analysis,allowedFields:fields});
+     analysis.mapping={...recipe.mapping};
+     if(recipe.header_row&&Number.isInteger(Number(recipe.header_row))&&Number(recipe.header_row)>=1&&Number(recipe.header_row)<=selected.rows.length){
+       const h=Number(recipe.header_row)-1;
+       if(h!==analysis.headerRow){analysis=detect(selected.rows.slice(h));analysis.headerRow+=h;analysis.data=selected.rows.slice(h+1).filter(r=>r.some(v=>String(v??'').trim()!==''));analysis.mapping={...recipe.mapping};}
+     }
+     options={...options,...(recipe.options||{})};
+     profile=['demand','inventory','generic'].includes(recipe.profile)?recipe.profile:profile;
+     orientation=['auto','long','wide'].includes(recipe.orientation)?recipe.orientation:orientation;
+     wideValueField=recipe.wideValueField||wideValueField;
+     aggregateConfig={...aggregateConfig,...(recipe.aggregateConfig||{})};
+     bsConfig={...bsConfig,...(recipe.bsConfig||{}),assignments:{...(recipe.bsConfig?.assignments||{})}};
+     batchOptions={...batchOptions,...(recipe.batchOptions||{})};
+     clearResult();render();
+   }catch(e){alert('Recipe適用不可: '+e.message);}
+ });
 }
 
 function render(){
