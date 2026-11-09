@@ -1,6 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {parseCSV,toCSV} from '../src/parser/csv.js';
 import {detect} from '../src/detector/index.js';
+import {buildRecipe,validateRecipe,sourceSignature} from '../src/recipe/index.js';
 import {transform} from '../src/transform/index.js';
 import {aggregateRecords,buildBalanceSheet} from '../src/aggregate/index.js';
 import {diagnoseCleaning,cleanRawTable} from '../src/cleaner/index.js';
@@ -90,6 +91,29 @@ describe('local-first data workflow',()=>{
    const rows=[['x'],['A'],['A']];
    expect(cleanRawTable(rows,{headerRow:0,removeExactDuplicates:false}).outputRows).toBe(2);
    expect(cleanRawTable(rows,{headerRow:0,removeExactDuplicates:true}).outputRows).toBe(1);
+ });
+ it('profiles column types for MVP diagnostics',()=>{
+   const d=detect([['SKU','Date','Demand'],['A','2026-01-01','10'],['B','2026-01-02','20']]);
+   expect(d.columnProfiles[1].inferredType).toBe('date');
+   expect(d.columnProfiles[2].inferredType).toBe('number');
+ });
+ it('saves and validates structural Recipe signatures',()=>{
+   const rows=[['SKU','Date','Demand'],['A','2026-01-01','2']];
+   const d=detect(rows);const sheets=[{name:'CSV',rows}];
+   const recipe=buildRecipe({sheets,analysis:d,options:{trim:true},profile:'demand',orientation:'auto',wideValueField:'demand_qty',aggregateConfig:{},bsConfig:{},batchOptions:{}});
+   expect(recipe.source_signature).toBe(sourceSignature(sheets,d));
+   expect(()=>validateRecipe(recipe,{sheets,analysis:d,allowedFields:['sku_id','date','demand_qty']})).not.toThrow();
+ });
+ it('reports Data Loss Guard SKU, null and date metrics',()=>{
+   const d=detect([['SKU','Date','Demand'],['A','2026-01-01','2'],['B','2026-01-02','3']]);
+   const t=transform(d,d.mapping);
+   const v=validate(d,t,'demand');
+   expect(v.stats.inputUniqueSku).toBe(2);
+   expect(v.stats.outputUniqueSku).toBe(2);
+   expect(v.stats.inputDateMin).toBe('2026-01-01');
+   expect(v.stats.outputDateMax).toBe('2026-01-02');
+   expect(v.stats.inputNullCount).toBe(0);
+   expect(v.stats.outputNullCount).toBe(0);
  });
  it('exports inventory without silently synthesizing fields',()=>{expect(exportCSV([{sku_id:'A',demand_qty:4}], 'inventory')).toContain('date,sku_id,demand_qty,inventory_on_hand')});
  it('keeps all twenty synthetic scenario fixtures parseable by detector',()=>{
