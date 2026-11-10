@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>プライバシーポリシー | Data Shaper</title><style>body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;max-width:860px;margin:40px auto;padding:0 20px;line-height:1.8;color:#192635}a{color:#1762ae}h1,h2{line-height:1.3}</style></head>
+<body><h1>Data Shaper プライバシーポリシー</h1>
+<p>Data Shaperは、CSV/XLSXの診断・クリーニング・正規化をLocal Firstで提供します。原則として、読み込んだCSV/XLSXの原データはブラウザ内で処理し、Googleログインを理由にサーバーへアップロードしません。</p>
+<h2>Google OAuthで取得・利用する情報</h2>
+<p>本人認証のため、Google OpenID Connectから次の情報だけを利用します。</p>
+<ul><li>Googleの安定識別子（<code>sub</code>）</li><li>メールアドレス</li><li><code>email_verified</code></li><li>表示名（Googleが返した場合）</li></ul>
+<p>要求するscopeは <code>openid email profile</code> のみです。Gmail、Google Drive、Google Calendar等へのアクセス権限は要求しません。</p>
+<p>Google <code>sub</code> はData Shaper内部の <code>user_id</code> に紐付けます。メールアドレス文字列だけを商品権限の判定キーには使用しません。</p>
+<h2>Google tokenとsession</h2>
+<p>OAuth callbackで受け取るID Tokenは署名・issuer・audience・有効期限・nonceの検証にのみ使用し、永続保存しません。Google access tokenやrefresh tokenもData Shaperのログインsessionとして保存しません。</p>
+<p>ログイン後はData Shaper独自の署名session cookieを使用します。cookieはHttpOnly、Secure、SameSite=Lax、Path=/で設定し、内部user_idをsessionの主キーとして使用します。</p>
+<h2>Stripeとの役割分離</h2>
+<p>Googleログインは本人認証だけを担当します。Pro権限はStripeのData Shaper専用Customer / Subscription / Product / Priceの状態を別途確認して決定します。Googleログイン成功だけでPro権限を付与しません。</p>
+<h2>ファイルデータ</h2>
+<p>CSV/XLSX原データ、変換前後データ、Recipe作成時の作業データは、Local First方針のもと原則ブラウザ内で処理します。認証機能の導入を理由に原データを認証サーバーへ送信しません。</p>
+<h2>お問い合わせ・情報開示</h2>
+<p><a href="https://namidata-lab-public.lingering-salad-74bc.workers.dev/legal/disclosure-request" rel="noreferrer">運営者情報・情報開示窓口</a></p>
+<p><a href="/">Data Shaperへ戻る</a> / <a href="/legal/terms/">利用規約</a></p>
+</body></html>
