@@ -1,4 +1,5 @@
 import {integrationStatus,disclosureUrl,domainStatus,canonicalOrigin} from './integrations/status.js';
+import {handleAuthRequest} from './auth/routes.js';
 
 function json(body,status=200){
   return new Response(JSON.stringify(body),{status,headers:{
@@ -21,6 +22,9 @@ function canonicalRedirect(request,env){
 export default {
   async fetch(request,env){
     const url=new URL(request.url);
+    if(url.pathname.startsWith('/api/auth/')){
+      return handleAuthRequest(request,env);
+    }
     if(url.pathname==='/api/integration-status'&&request.method==='GET'){
       return json(integrationStatus(env));
     }
