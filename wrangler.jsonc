@@ -6,7 +6,15 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": [
+      "/api/*"
+    ]
   },
-  "previews": {}
+  "previews": {},
+  "vars": {
+    "APP_ORIGIN": "https://web-app-data.data-analist.workers.dev",
+    "ENFORCE_CANONICAL_ORIGIN": "false",
+    "DATA_SHAPER_BILLING_ENABLED": "false",
+    "LEGAL_DISCLOSURE_URL": "https://namidata-lab-public.lingering-salad-74bc.workers.dev/legal/disclosure-request"
+  }
 }
