@@ -1,0 +1,22 @@
+export const scenarios = [
+ {name:'01_clean', rows:[['SKU','Date','Demand'],['A','2026-01-01','1']]},
+ {name:'02_header_row_4', rows:[['Company'],['Report'],['Note'],['SKU','Date','Demand'],['A','2026-01-01','2']]},
+ {name:'03_wide_format', rows:[['SKU','2026-01-01','2026-01-02'],['A','1','2']]},
+ {name:'04_duplicate_rows', rows:[['SKU','Date','Demand'],['A','2026-01-01','1'],['A','2026-01-01','1']]},
+ {name:'05_shiftjis_placeholder', rows:[['SKU','Date','Demand'],['A','2026-01-01','1']], note:'Encoding is tested at file-decoder boundary; never silently guessed.'},
+ {name:'06_fullwidth_numbers', rows:[['商品コード','日付','販売数量'],['Ａ－００１','2026/1/1','１２']]},
+ {name:'07_missing_sku', rows:[['Date','Demand'],['2026-01-01','1']]},
+ {name:'08_negative_quantity', rows:[['SKU','Date','Demand'],['A','2026-01-01','-2']]},
+ {name:'09_total_rows', rows:[['SKU','Date','Demand'],['A','2026-01-01','1'],['TOTAL','','1']], note:'Total rows are not automatically deleted.'},
+ {name:'10_multi_sheet_sheet1', rows:[['SKU','Date','Demand'],['A','2026-01-01','1']]},
+ {name:'11_multi_location', rows:[['SKU','Date','Demand','Location'],['A','2026-01-01','1','Tokyo'],['A','2026-01-01','2','Osaka']]},
+ {name:'12_mixed_dates', rows:[['SKU','Date','Demand'],['A','2026/1/1','1'],['B','2026年1月2日','2']]},
+ {name:'13_numeric_text', rows:[['SKU','Date','Demand'],['A','2026-01-01','10個']]},
+ {name:'14_blank_zero_ambiguous', rows:[['SKU','Date','Demand'],['A','2026-01-01',''],['B','2026-01-01','0']]},
+ {name:'15_merged_headers_placeholder', rows:[['商品','数量'],['SKU','Demand'],['A','1']], note:'Merged-cell workbook behavior requires XLSX browser E2E.'},
+ {name:'16_monthly_columns', rows:[['SKU','2026-01','2026-02'],['A','10','11']]},
+ {name:'17_wrong_header', rows:[['random','words'],['nothing','useful'],['SKU','Date','Demand'],['A','2026-01-01','1']]},
+ {name:'18_return_data', rows:[['SKU','Date','Demand'],['A','2026-01-01','-1']], note:'Negative may represent a valid return.'},
+ {name:'19_duplicate_sku_names', rows:[['SKU','Product','Date','Demand'],['001','Widget','2026-01-01','1'],['002','Widget','2026-01-01','2']]},
+ {name:'20_large_file_shape', rows:[['SKU','Date','Demand'],...Array.from({length:2000},(_,i)=>['SKU-'+i,'2026-01-01',String(i%7)])]}
+];

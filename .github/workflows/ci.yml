@@ -1,0 +1,21 @@
+name: Verify Data Shaper
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+      - run: npx wrangler deploy --dry-run
+      - name: Validate Worker Previews config
+        run: node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); if(!Object.prototype.hasOwnProperty.call(c,'previews')) throw new Error('wrangler.jsonc must define previews');"

@@ -1,0 +1,28 @@
+# Data Shaper runtime configuration.
+# Copy to .dev.vars for local development. Never commit actual secret values.
+
+# Canonical OAuth/domain origin. Production must be the exact stable HTTPS origin with no trailing slash/path.
+# APP_ORIGIN=https://ACTUAL_DATA_SHAPER_HOST
+ENFORCE_CANONICAL_ORIGIN=false
+
+# Google OpenID Connect — identity only.
+# Client ID is not a secret but remains runtime-configured.
+# GOOGLE_OAUTH_CLIENT_ID=000000000000-example.apps.googleusercontent.com
+# GOOGLE_OAUTH_CLIENT_SECRET=REPLACE_WITH_CLOUDFLARE_SECRET
+# SESSION_SECRET=REPLACE_WITH_AT_LEAST_32_RANDOM_CHARACTERS
+
+# D1 binding name required by OAuth identity mapping:
+# DB
+# Create/apply migrations/0001_core.sql and migrations/0002_google_identity.sql,
+# then bind the verified D1 database as DB in Cloudflare. Do not invent database_id values here.
+
+# Keep billing disabled until a Data Shaper-specific Stripe Product/Price and entitlement E2E exist.
+DATA_SHAPER_BILLING_ENABLED=false
+
+# Stripe TEST only. Never reuse DemandScope/NamiData Product/Price IDs.
+# STRIPE_TEST_SECRET_KEY=rk_test_REPLACE_ME
+# DATA_SHAPER_STRIPE_TEST_PRICE_ID=price_REPLACE_ME
+# DATA_SHAPER_STRIPE_WEBHOOK_SECRET=whsec_REPLACE_ME
+
+# Public, non-secret common operator-disclosure destination.
+LEGAL_DISCLOSURE_URL=https://namidata-lab-public.lingering-salad-74bc.workers.dev/legal/disclosure-request
