@@ -19,9 +19,62 @@ let aggregateConfig={group1:'',group2:'',valueField:'amount',method:'sum'};
 let bsConfig={accountField:'account_name',amountField:'amount',assignments:{}};
 let selectedBatchSheets=new Set(),batchResults=[];
 let batchOptions={trim:true,width:true,removeExactDuplicates:false};
+let authState={loaded:false,loading:false,authenticated:false,user:null,entitlement:{tier:'free',pro:false,source:'stripe',reason:'not_authenticated'}};
 
 function el(tag,text,parent,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;(parent||app).appendChild(e);return e;}
 function button(text,onClick,parent,cls){const b=el('button',text,parent,cls);b.type='button';b.addEventListener('click',onClick);return b;}
+async function refreshAuth(){
+ if(authState.loading)return;
+ authState={...authState,loading:true};
+ try{
+   const res=await fetch('/api/auth/session',{credentials:'same-origin',headers:{accept:'application/json'}});
+   const data=await res.json();
+   authState={loaded:true,loading:false,authenticated:data.authenticated===true,user:data.user||null,entitlement:data.entitlement||{tier:'unknown',pro:false,source:'stripe',reason:'unknown'}};
+ }catch{
+   authState={loaded:true,loading:false,authenticated:false,user:null,entitlement:{tier:'unknown',pro:false,source:'stripe',reason:'session_unavailable'}};
+ }
+ render();
+}
+async function logoutAuth(){
+ try{await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{accept:'application/json'}});}catch{}
+ authState={loaded:false,loading:false,authenticated:false,user:null,entitlement:{tier:'free',pro:false,source:'stripe',reason:'not_authenticated'}};
+ await refreshAuth();
+}
+function renderAuthBar(){
+ const bar=el('section',undefined,app,'auth-bar');
+ const left=el('div',undefined,bar,'auth-copy');
+ el('strong','アカウント',left);
+ if(!authState.loaded){
+   el('span',' ログイン状態を確認中…',left,'status');
+   return;
+ }
+ if(authState.authenticated){
+   const name=authState.user?.name||authState.user?.email||'Googleユーザー';
+   el('span',' '+name,left);
+   if(authState.user?.email)el('small',authState.user.email,left);
+   const badge=el('span',authState.entitlement?.pro?'Pro':'Free',left,'auth-badge '+(authState.entitlement?.pro?'pro':'free'));
+   badge.title='Googleログインは本人認証のみ。Pro権限はStripe entitlementで判定します。';
+   button('ログアウト',logoutAuth,bar,'secondary-button');
+ }else{
+   el('span',' Free機能はログイン不要です。',left,'status');
+   const login=el('a','Googleでログイン',bar,'login-link');
+   login.href='/api/auth/google/start';
+   login.rel='nofollow';
+ }
+}
+function proAuthorized(){return authState.loaded&&authState.authenticated&&authState.entitlement?.pro===true;}
+function renderProLocked(){
+ const wrap=el('div',undefined,app,'workspace-panel');
+ const s=section('Proアクセス',wrap);
+ if(!authState.loaded){el('p','ログイン状態を確認しています。',s,'status');return;}
+ if(!authState.authenticated){
+   el('p','Pro機能はGoogleで本人認証した後、StripeのData Shaper専用契約を別途確認して開放します。',s,'warning');
+   const login=el('a','Googleでログイン',s,'login-link');login.href='/api/auth/google/start';
+ }else{
+   el('p','Google本人認証は完了しています。ただし現在、有効なData Shaper ProのStripe entitlementを確認できないためPro機能は開放しません。',s,'warning');
+   el('p','Googleログイン成功だけでPro権限を付与しない設計です。',s,'status');
+ }
+}
 function select(values,value,onChange,parent){const e=el('select',undefined,parent);for(const [v,t] of values){const o=el('option',t,e);o.value=v;}e.value=value;e.addEventListener('change',()=>onChange(e.value));return e;}
 function section(title,parent=app){const s=el('section',undefined,parent);el('h2',title,s);return s;}
 function clearResult(){result=null;report=null;}
@@ -199,15 +252,18 @@ function renderRecipe(){
 }
 
 function render(){
- app.replaceChildren();el('h1','Data Shaper',app);el('p','無料診断からPro一括クリーニング、集計、決算書レイアウトまでをLocal Firstで処理します。',app,'subtitle');renderTabs();
+ app.replaceChildren();el('h1','Data Shaper',app);el('p','無料診断からPro一括クリーニング、集計、決算書レイアウトまでをLocal Firstで処理します。',app,'subtitle');renderAuthBar();renderTabs();
  if(workspaceTab==='free')renderFree();
- if(workspaceTab==='pro')renderPro();
- if(workspaceTab==='aggregate')renderAggregate();
- if(workspaceTab==='balance')renderBalance();
- renderRecipe();
+ if(workspaceTab==='pro')(proAuthorized()?renderPro():renderProLocked());
+ if(workspaceTab==='aggregate')(proAuthorized()?renderAggregate():renderProLocked());
+ if(workspaceTab==='balance')(proAuthorized()?renderBalance():renderProLocked());
+ if(proAuthorized())renderRecipe();
  const footer=el('footer',undefined,app,'app-footer');
+ const privacy=el('a','プライバシー',footer);privacy.href='/legal/privacy/';
+ const terms=el('a','利用規約',footer);terms.href='/legal/terms/';
  const disclosure=el('a','運営者情報・情報開示',footer);
  disclosure.href='/api/legal/disclosure';
  disclosure.rel='noreferrer';
 }
 render();
+refreshAuth();
