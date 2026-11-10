@@ -71,9 +71,16 @@ export async function handlePortal(request,env,deps={}){
     return json(session);
   }catch{return json({error:'stripe_portal_failed'},502)}
 }
+export function subscriptionMatchesDataShaper(env,obj){
+  const configuredPrice=billingConfig(env).priceId;
+  const productKey=String(obj?.metadata?.product_key||'');
+  const priceIds=Array.isArray(obj?.items?.data)?obj.items.data.map(item=>item?.price?.id).filter(Boolean):[];
+  return productKey==='data-shaper-pro'&&!!configuredPrice&&priceIds.includes(configuredPrice);
+}
 async function applyWebhookEvent(env,event){
   const obj=event?.data?.object||{};
   if(event?.type==='checkout.session.completed'){
+    if(String(obj.metadata?.product_key||'')!=='data-shaper-pro')return;
     const userId=String(obj.client_reference_id||obj.metadata?.data_shaper_user_id||'');
     const customerId=typeof obj.customer==='string'?obj.customer:obj.customer?.id;
     if(/^usr_[0-9a-f-]{36}$/i.test(userId)&&/^cus_[A-Za-z0-9]+$/.test(customerId||'')){
@@ -82,6 +89,7 @@ async function applyWebhookEvent(env,event){
     return;
   }
   if(['customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'].includes(event?.type)){
+    if(!subscriptionMatchesDataShaper(env,obj))return;
     const customerId=typeof obj.customer==='string'?obj.customer:obj.customer?.id;
     let userId=String(obj.metadata?.data_shaper_user_id||'');
     if(!/^usr_[0-9a-f-]{36}$/i.test(userId)&&customerId){
