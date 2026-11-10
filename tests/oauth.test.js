@@ -1,17 +1,17 @@
 import {describe,it,expect,beforeAll} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {b64urlEncode,te} from '../src/auth/crypto.js';
-import {GOOGLE_SCOPES,validateGoogleClaims,verifyGoogleIdToken} from '../src/auth/google.js';
+import {GOOGLE_SCOPES,DATA_SHAPER_GOOGLE_CLIENT_ID,googleConfig,googleConfigMissing,validateGoogleClaims,verifyGoogleIdToken} from '../src/auth/google.js';
 import {issueSessionCookie,readOAuthFlow} from '../src/auth/session.js';
 import {handleGoogleCallback,handleGoogleStart,handleLogout} from '../src/auth/routes.js';
 import {resolveEntitlement} from '../src/auth/store.js';
 
-const CLIENT_ID='175542619333-datashapertest.apps.googleusercontent.com';
+const CLIENT_ID=DATA_SHAPER_GOOGLE_CLIENT_ID;
 const ORIGIN='https://data.example.com';
 const SECRET='google-client-secret-test-only';
 const SESSION_SECRET='S'.repeat(48);
 const dbStub={prepare(){return {bind(){return this},first:async()=>({n:4}),run:async()=>({success:true})}}};
-const env={GOOGLE_OAUTH_CLIENT_ID:CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET:SECRET,SESSION_SECRET,APP_ORIGIN:ORIGIN,DB:dbStub,DATA_SHAPER_BILLING_ENABLED:'false'};
+const env={GOOGLE_OAUTH_CLIENT_SECRET:SECRET,SESSION_SECRET,APP_ORIGIN:ORIGIN,DB:dbStub,DATA_SHAPER_BILLING_ENABLED:'false'};
 
 let keys,jwks;
 beforeAll(async()=>{
@@ -33,6 +33,17 @@ function claims(overrides={}){
  return {iss:'https://accounts.google.com',aud:CLIENT_ID,exp:now+600,iat:now-5,nonce:'nonce-ok',sub:'google-sub-123',email:'USER@example.com',email_verified:true,name:'Data User',...overrides};
 }
 function cookiePair(setCookie){return String(setCookie||'').split(';')[0]}
+
+describe('Data Shaper client pinning',()=>{
+ it('uses the verified Data Shaper Web client when env client id is omitted',()=>{
+   expect(googleConfig(env).clientId).toBe(DATA_SHAPER_GOOGLE_CLIENT_ID);
+   expect(googleConfigMissing(env)).not.toContain('GOOGLE_OAUTH_CLIENT_ID_MISMATCH');
+ });
+ it('fails closed if a different Google client id is injected',()=>{
+   const bad={...env,GOOGLE_OAUTH_CLIENT_ID:'175542619333-3ilgeia6pa4dglofipc3f20vdqgod4ju.apps.googleusercontent.com'};
+   expect(googleConfigMissing(bad)).toContain('GOOGLE_OAUTH_CLIENT_ID_MISMATCH');
+ });
+});
 
 describe('Google OIDC start',()=>{
  it('uses Authorization Code + PKCE with minimum scopes and fixed callback',async()=>{
