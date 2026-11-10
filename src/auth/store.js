@@ -51,3 +51,34 @@ export async function resolveEntitlement(env,userId){
     return {tier:'unknown',pro:false,source:'stripe',reason:'entitlement_store_unavailable'};
   }
 }
+
+export async function getStripeCustomerLink(env,userId){
+  const db=requireDb(env);
+  return db.prepare('SELECT user_id,stripe_customer_id,updated_at FROM stripe_customer_links WHERE user_id=?').bind(userId).first();
+}
+export async function getUserIdByStripeCustomer(env,customerId){
+  const db=requireDb(env);
+  const row=await db.prepare('SELECT user_id FROM stripe_customer_links WHERE stripe_customer_id=?').bind(customerId).first();
+  return row?.user_id||null;
+}
+export async function upsertStripeCustomerLink(env,userId,customerId){
+  const db=requireDb(env),now=isoNow();
+  await db.prepare(`INSERT INTO stripe_customer_links (user_id,stripe_customer_id,updated_at)
+    VALUES (?,?,?)
+    ON CONFLICT(user_id) DO UPDATE SET stripe_customer_id=excluded.stripe_customer_id,updated_at=excluded.updated_at`)
+    .bind(userId,customerId,now).run();
+}
+export async function upsertStripeEntitlement(env,{subscriptionId,userId,customerId,priceId,status}){
+  const db=requireDb(env),now=isoNow();
+  await db.prepare(`INSERT INTO stripe_entitlements
+    (stripe_subscription_id,user_id,stripe_customer_id,product_key,stripe_price_id,status,updated_at)
+    VALUES (?,?,?,'data-shaper-pro',?,?,?)
+    ON CONFLICT(stripe_subscription_id) DO UPDATE SET
+      user_id=excluded.user_id,
+      stripe_customer_id=excluded.stripe_customer_id,
+      product_key='data-shaper-pro',
+      stripe_price_id=excluded.stripe_price_id,
+      status=excluded.status,
+      updated_at=excluded.updated_at`)
+    .bind(subscriptionId,userId,customerId,priceId||null,status,now).run();
+}
