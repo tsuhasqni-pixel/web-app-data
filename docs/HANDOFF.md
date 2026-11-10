@@ -12,7 +12,11 @@ Browser-only CSV/TSV and XLSX parsing, manual header choice, Auto/Long/Wide orie
 Run `npm install && npm test && npm run build` and inspect GitHub Actions on the exact branch head. Test uploaded CSV and XLSX manually in Chrome, Edge, Safari. Do not declare production-ready.
 
 ## Known gaps
-Wide-to-long exists for recognized date/month headers, but complex merged-header pivoting is not covered. No Shift-JIS decoder, formula/merged-cell browser E2E, calibration of confidence, persisted remote recipes, Stripe/OAuth entitlement enforcement, live D1 binding, or Cloudflare production deployment. Actual inventory app field specification is not yet established. No real enterprise data has been used.
+Wide-to-long exists for recognized date/month headers, but complex merged-header pivoting is not covered. No Shift-JIS decoder, formula/merged-cell browser E2E, calibration of confidence, persisted remote recipes, Stripe entitlement/backend enforcement, live D1 binding, Auth Mail Gateway E2E, or Cloudflare production deployment. Actual inventory app field specification is not yet established. No real enterprise data has been used.
 
 ## Cloudflare deployment gate
 New Cloudflare account ID and project name must be read and matched before attaching workers builds or secrets. Never deploy to the old account based on inferred names. No auto merge to main.
+
+
+## Current auth/billing decision
+End-user GitHub OAuth will not be used. Stripe remains product entitlement/billing authority; shared Auth Mail Gateway is reserved for email-possession verification and cross-device recovery. See `docs/AUTH_BILLING.md`.
