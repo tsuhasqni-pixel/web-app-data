@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
-    "deploy": "wrangler deploy",
+    "deploy": "node scripts/deploy-production.mjs",
     "preview": "wrangler preview"
   },
   "dependencies": {

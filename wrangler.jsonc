@@ -22,5 +22,12 @@
       "GOOGLE_OAUTH_CLIENT_SECRET",
       "SESSION_SECRET"
     ]
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "data-shaper-db",
+      "database_id": "8b53d1e1-0e2f-4cde-81a3-9d8ab1eed908"
+    }
+  ]
 }
