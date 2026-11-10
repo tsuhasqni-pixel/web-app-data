@@ -205,5 +205,9 @@ function render(){
  if(workspaceTab==='aggregate')renderAggregate();
  if(workspaceTab==='balance')renderBalance();
  renderRecipe();
+ const footer=el('footer',undefined,app,'app-footer');
+ const disclosure=el('a','運営者情報・情報開示',footer);
+ disclosure.href='/api/legal/disclosure';
+ disclosure.rel='noreferrer';
 }
 render();
