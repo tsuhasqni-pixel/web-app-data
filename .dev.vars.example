@@ -1,0 +1,13 @@
+# Data Shaper non-mail connection settings.
+# Copy to .dev.vars locally. Never commit actual secret values.
+
+# Keep billing disabled until TEST Checkout/Webhook/entitlement E2E exists.
+DATA_SHAPER_BILLING_ENABLED=false
+
+# Stripe TEST only. Use a Data Shaper-specific Product/Price; never reuse DemandScope/NamiData IDs.
+# STRIPE_TEST_SECRET_KEY=rk_test_REPLACE_ME
+# DATA_SHAPER_STRIPE_TEST_PRICE_ID=price_REPLACE_ME
+# DATA_SHAPER_STRIPE_WEBHOOK_SECRET=whsec_REPLACE_ME
+
+# Public, non-secret common operator-disclosure destination.
+LEGAL_DISCLOSURE_URL=https://namidata-lab-public.lingering-salad-74bc.workers.dev/legal/disclosure-request
