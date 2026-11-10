@@ -1,6 +1,10 @@
 # Data Shaper non-mail connection settings.
 # Copy to .dev.vars locally. Never commit actual secret values.
 
+# Custom-domain cutover. Leave unset until DNS/Cloudflare custom domain is ready.
+# APP_ORIGIN=https://data.YOUR_DOMAIN
+ENFORCE_CANONICAL_ORIGIN=false
+
 # Keep billing disabled until TEST Checkout/Webhook/entitlement E2E exists.
 DATA_SHAPER_BILLING_ENABLED=false
 
