@@ -30,12 +30,30 @@ Verified project ID from the signed-in Google Cloud console:
 web-513010
 ```
 
-Create a separate Web application OAuth client only after the stable Data Shaper HTTPS Production origin is verified.
+Verified Web application OAuth client and stable production origin:
 
 Client name:
 
 ```text
 Data Shaper Web
+```
+
+Client ID:
+
+```text
+175542619333-d84tqogb2kkhrc92caset5ilmgs2moa4.apps.googleusercontent.com
+```
+
+Production origin:
+
+```text
+https://web-app-data.data-analist.workers.dev
+```
+
+Authorized redirect URI:
+
+```text
+https://web-app-data.data-analist.workers.dev/api/auth/google/callback
 ```
 
 Scopes:
@@ -101,8 +119,9 @@ Apply:
 Cloudflare variables/secrets:
 
 ```text
-APP_ORIGIN=https://ACTUAL_DATA_SHAPER_HOST
-GOOGLE_OAUTH_CLIENT_ID=<Data Shaper Web client id>
+APP_ORIGIN=https://web-app-data.data-analist.workers.dev
+# GOOGLE_OAUTH_CLIENT_ID is pinned in code; if set explicitly it must match:
+# 175542619333-d84tqogb2kkhrc92caset5ilmgs2moa4.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=<Cloudflare Secret>
 SESSION_SECRET=<Cloudflare Secret, 32+ chars>
 DATA_SHAPER_BILLING_ENABLED=false
@@ -118,9 +137,7 @@ Do not commit secret values.
 
 ## Current deployment gate
 
-Do not register Google redirect URLs from a guessed Worker hostname.
-
-The final Google values must be produced only after the actual stable Cloudflare Production HTTPS URL is verified.
+Google redirect URLs are now verified against the stable Cloudflare Workers production hostname.
 
 Until the OAuth client secret, D1 binding/migrations, and stable callback URL are installed in Cloudflare, status is:
 

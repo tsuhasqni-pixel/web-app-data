@@ -4,6 +4,7 @@ export const GOOGLE_AUTHORIZE_URL='https://accounts.google.com/o/oauth2/v2/auth'
 export const GOOGLE_TOKEN_URL='https://oauth2.googleapis.com/token';
 export const GOOGLE_JWKS_URL='https://www.googleapis.com/oauth2/v3/certs';
 export const GOOGLE_SCOPES='openid email profile';
+export const DATA_SHAPER_GOOGLE_CLIENT_ID='175542619333-d84tqogb2kkhrc92caset5ilmgs2moa4.apps.googleusercontent.com';
 
 let jwksCache={expires:0,value:null};
 
@@ -20,7 +21,8 @@ export function configuredOAuthOrigin(env={}){
   }catch{return null}
 }
 export function googleConfig(env={}){
-  const clientId=clean(env.GOOGLE_OAUTH_CLIENT_ID);
+  const configuredClientId=clean(env.GOOGLE_OAUTH_CLIENT_ID);
+  const clientId=configuredClientId||DATA_SHAPER_GOOGLE_CLIENT_ID;
   const clientSecret=clean(env.GOOGLE_OAUTH_CLIENT_SECRET);
   const sessionSecret=clean(env.SESSION_SECRET);
   const origin=configuredOAuthOrigin(env);
@@ -30,14 +32,14 @@ export function googleConfig(env={}){
     sessionSecret,
     origin,
     callbackUrl:origin?`${origin}/api/auth/google/callback`:null,
-    clientIdConfigured:/^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(clientId),
+    clientIdConfigured:clientId===DATA_SHAPER_GOOGLE_CLIENT_ID,
     clientSecretConfigured:clientSecret.length>=16,
     sessionSecretConfigured:sessionSecret.length>=32
   };
 }
 export function googleConfigMissing(env={}){
   const c=googleConfig(env),missing=[];
-  if(!c.clientIdConfigured)missing.push('GOOGLE_OAUTH_CLIENT_ID');
+  if(!c.clientIdConfigured)missing.push('GOOGLE_OAUTH_CLIENT_ID_MISMATCH');
   if(!c.clientSecretConfigured)missing.push('GOOGLE_OAUTH_CLIENT_SECRET');
   if(!c.sessionSecretConfigured)missing.push('SESSION_SECRET');
   if(!c.origin)missing.push('APP_ORIGIN');

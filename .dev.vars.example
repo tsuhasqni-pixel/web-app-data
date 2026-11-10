@@ -2,12 +2,13 @@
 # Copy to .dev.vars for local development. Never commit actual secret values.
 
 # Canonical OAuth/domain origin. Production must be the exact stable HTTPS origin with no trailing slash/path.
-# APP_ORIGIN=https://ACTUAL_DATA_SHAPER_HOST
+# APP_ORIGIN=https://web-app-data.data-analist.workers.dev
 ENFORCE_CANONICAL_ORIGIN=false
 
 # Google OpenID Connect — identity only.
-# Client ID is not a secret but remains runtime-configured.
-# GOOGLE_OAUTH_CLIENT_ID=000000000000-example.apps.googleusercontent.com
+# Data Shaper Web client ID is public and pinned in src/auth/google.js.
+# Optional explicit match check:
+# GOOGLE_OAUTH_CLIENT_ID=175542619333-d84tqogb2kkhrc92caset5ilmgs2moa4.apps.googleusercontent.com
 # GOOGLE_OAUTH_CLIENT_SECRET=REPLACE_WITH_CLOUDFLARE_SECRET
 # SESSION_SECRET=REPLACE_WITH_AT_LEAST_32_RANDOM_CHARACTERS
 
