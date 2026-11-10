@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {billingConfig,billingMissing,createCheckoutSession,verifyStripeWebhook} from '../src/billing/stripe.js';
+import {subscriptionMatchesDataShaper} from '../src/billing/routes.js';
 
 const ORIGIN='https://data.example.com';
 const USER_ID='usr_12345678-1234-1234-1234-123456789abc';
@@ -82,5 +83,20 @@ describe('Stripe webhook verification',()=>{
     const header=await webhookSignature(raw,now);
     await expect(verifyStripeWebhook(raw+'x',header,WEBHOOK_SECRET,{now})).resolves.toBe(false);
     await expect(verifyStripeWebhook(raw,header,WEBHOOK_SECRET,{now:now+301})).resolves.toBe(false);
+  });
+});
+
+describe('Data Shaper webhook entitlement boundary',()=>{
+  it('accepts only the configured Data Shaper price and product key',()=>{
+    const matching={
+      metadata:{product_key:'data-shaper-pro'},
+      items:{data:[{price:{id:baseEnv.DATA_SHAPER_STRIPE_TEST_PRICE_ID}}]}
+    };
+    expect(subscriptionMatchesDataShaper(baseEnv,matching)).toBe(true);
+    expect(subscriptionMatchesDataShaper(baseEnv,{...matching,metadata:{product_key:'other-product'}})).toBe(false);
+    expect(subscriptionMatchesDataShaper(baseEnv,{
+      metadata:{product_key:'data-shaper-pro'},
+      items:{data:[{price:{id:'price_other'}}]}
+    })).toBe(false);
   });
 });
