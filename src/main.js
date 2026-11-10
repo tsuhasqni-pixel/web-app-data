@@ -94,6 +94,14 @@ function renderProLocked(){
  }else{
    el('p','Google本人認証は完了しています。ただし現在、有効なData Shaper ProのStripe entitlementを確認できないためPro機能は開放しません。',s,'warning');
    el('p','Googleログイン成功だけでPro権限を付与しない設計です。',s,'status');
+    if(!billingState.loaded){
+      el('p','Stripe TEST接続状態を確認しています。',s,'status');
+    }else if(billingState.ready){
+      el('p','現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
+      button('TEST Proを開始（月額 ¥980）',startTestCheckout,s);
+    }else{
+      el('p','Stripe TEST決済は準備中です。',s,'status');
+    }
  }
 }
 function select(values,value,onChange,parent){const e=el('select',undefined,parent);for(const [v,t] of values){const o=el('option',t,e);o.value=v;}e.value=value;e.addEventListener('change',()=>onChange(e.value));return e;}
