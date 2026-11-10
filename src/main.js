@@ -20,6 +20,7 @@ let bsConfig={accountField:'account_name',amountField:'amount',assignments:{}};
 let selectedBatchSheets=new Set(),batchResults=[];
 let batchOptions={trim:true,width:true,removeExactDuplicates:false};
 let authState={loaded:false,loading:false,authenticated:false,user:null,entitlement:{tier:'free',pro:false,source:'stripe',reason:'not_authenticated'}};
+let billingState={loaded:false,loading:false,enabled:false,ready:false,mode:'test',missing:[]};
 
 function el(tag,text,parent,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;(parent||app).appendChild(e);return e;}
 function button(text,onClick,parent,cls){const b=el('button',text,parent,cls);b.type='button';b.addEventListener('click',onClick);return b;}
@@ -34,6 +35,26 @@ async function refreshAuth(){
    authState={loaded:true,loading:false,authenticated:false,user:null,entitlement:{tier:'unknown',pro:false,source:'stripe',reason:'session_unavailable'}};
  }
  render();
+}
+async function refreshBilling(){
+ if(billingState.loading)return;
+ billingState={...billingState,loading:true};
+ try{
+   const res=await fetch('/api/billing/status',{credentials:'same-origin',headers:{accept:'application/json'}});
+   const data=await res.json();
+   billingState={loaded:true,loading:false,enabled:data.billing_enabled===true,ready:data.ready_for_test===true,mode:data.mode||'test',missing:Array.isArray(data.missing)?data.missing:[]};
+ }catch{
+   billingState={loaded:true,loading:false,enabled:false,ready:false,mode:'test',missing:['status_unavailable']};
+ }
+ render();
+}
+async function startTestCheckout(){
+ try{
+   const res=await fetch('/api/billing/checkout',{method:'POST',credentials:'same-origin',headers:{accept:'application/json'}});
+   const data=await res.json();
+   if(!res.ok||!data?.url)throw new Error(data?.error||'checkout_failed');
+   location.assign(data.url);
+ }catch(e){alert('TEST決済を開始できませんでした: '+e.message);}
 }
 async function logoutAuth(){
  try{await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{accept:'application/json'}});}catch{}
@@ -267,3 +288,12 @@ function render(){
 }
 render();
 refreshAuth();
+refreshBilling();
+if(new URLSearchParams(location.search).get('billing')==='success'){
+  let attempts=0;
+  const timer=setInterval(async()=>{
+    attempts+=1;
+    await refreshAuth();
+    if(authState.entitlement?.pro===true||attempts>=5)clearInterval(timer);
+  },1000);
+}

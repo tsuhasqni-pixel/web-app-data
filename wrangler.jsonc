@@ -14,7 +14,7 @@
   "vars": {
     "APP_ORIGIN": "https://web-app-data.data-analist.workers.dev",
     "ENFORCE_CANONICAL_ORIGIN": "false",
-    "DATA_SHAPER_BILLING_ENABLED": "false",
+    "DATA_SHAPER_BILLING_ENABLED": "true",
     "LEGAL_DISCLOSURE_URL": "https://namidata-lab-public.lingering-salad-74bc.workers.dev/legal/disclosure-request",
     "DATA_SHAPER_STRIPE_TEST_PRICE_ID": "price_1UaHXEBGa8rL8jwIIhFKKasw"
   },
