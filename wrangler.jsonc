@@ -16,5 +16,11 @@
     "ENFORCE_CANONICAL_ORIGIN": "false",
     "DATA_SHAPER_BILLING_ENABLED": "false",
     "LEGAL_DISCLOSURE_URL": "https://namidata-lab-public.lingering-salad-74bc.workers.dev/legal/disclosure-request"
+  },
+  "secrets": {
+    "required": [
+      "GOOGLE_OAUTH_CLIENT_SECRET",
+      "SESSION_SECRET"
+    ]
   }
 }
