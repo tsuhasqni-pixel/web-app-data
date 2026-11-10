@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 
 const required = ['GOOGLE_OAUTH_CLIENT_SECRET', 'SESSION_SECRET'];
+const optional = ['STRIPE_TEST_SECRET_KEY', 'DATA_SHAPER_STRIPE_WEBHOOK_SECRET'];
 const missing = required.filter((name) => !String(process.env[name] || '').trim());
 
 if (missing.length) {
@@ -12,7 +13,8 @@ if (missing.length) {
 }
 
 const secretsPath = join(tmpdir(), `data-shaper-secrets-${process.pid}.json`);
-const secrets = Object.fromEntries(required.map((name) => [name, process.env[name]]));
+const forwarded = [...required, ...optional.filter((name) => String(process.env[name] || '').trim())];
+const secrets = Object.fromEntries(forwarded.map((name) => [name, process.env[name]]));
 
 try {
   writeFileSync(secretsPath, JSON.stringify(secrets), { mode: 0o600 });
