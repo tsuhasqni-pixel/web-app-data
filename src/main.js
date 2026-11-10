@@ -56,14 +56,6 @@ async function startTestCheckout(){
    location.assign(data.url);
  }catch(e){alert('TEST決済を開始できませんでした: '+e.message);}
 }
-async function startTestCheckout(){
- try{
-   const res=await fetch('/api/billing/checkout',{method:'POST',credentials:'same-origin',headers:{accept:'application/json'}});
-   const data=await res.json();
-   if(!res.ok||!data?.url)throw new Error(data?.error||'checkout_failed');
-   location.assign(data.url);
- }catch(e){alert('TEST決済を開始できませんでした: '+e.message);}
-}
 async function logoutAuth(){
  try{await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{accept:'application/json'}});}catch{}
  authState={loaded:false,loading:false,authenticated:false,user:null,entitlement:{tier:'free',pro:false,source:'stripe',reason:'not_authenticated'}};
@@ -296,14 +288,6 @@ function render(){
 }
 render();
 refreshAuth();
-if(new URLSearchParams(location.search).get('billing')==='success'){
- let attempts=0;
- const timer=setInterval(async()=>{
-   attempts+=1;
-   await refreshAuth();
-   if(authState.entitlement?.pro===true||attempts>=6)clearInterval(timer);
- },1200);
-}
 refreshBilling();
 if(new URLSearchParams(location.search).get('billing')==='success'){
   let attempts=0;
