@@ -42,6 +42,19 @@ export function integrationStatus(env={}){
   const webhookConfigured=secretConfigured(stripeWebhook,'whsec_');
   const disclosure=httpsUrl(env.LEGAL_DISCLOSURE_URL);
   const domain=domainStatus(env);
+  const googleClient=clean(env.GOOGLE_OAUTH_CLIENT_ID);
+  const googleSecret=clean(env.GOOGLE_OAUTH_CLIENT_SECRET);
+  const sessionSecret=clean(env.SESSION_SECRET);
+  const google={
+    provider:'google',
+    scopes:['openid','email','profile'],
+    client_id_configured:/^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(googleClient),
+    client_secret_configured:googleSecret.length>=16,
+    session_secret_configured:sessionSecret.length>=32,
+    identity_store_bound:!!env.DB?.prepare,
+    entitlement_source:'stripe'
+  };
+  google.ready=google.client_id_configured&&google.client_secret_configured&&google.session_secret_configured&&google.identity_store_bound&&domain.configured;
   return {
     service:'data-shaper',
     production_billing:false,
@@ -56,6 +69,8 @@ export function integrationStatus(env={}){
       ready:billingEnabled&&stripeConfigured&&priceConfigured&&webhookConfigured
     },
     legal:{disclosure_configured:!!disclosure},
+    google_oauth:google,
+    ready_for_google_oauth:google.ready,
     ready_for_test_connections:!!env.ASSETS&&stripeConfigured&&priceConfigured&&webhookConfigured&&!!disclosure,
     ready_for_domain_cutover:!!env.ASSETS&&domain.ready_for_cutover&&!!disclosure
   };
