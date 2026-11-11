@@ -141,7 +141,7 @@ export function mapTrialBalanceToTemplate(records,template,{
     if(manual&&byId.has(manual)){
       targetIds=[manual];matchSource='manual';
     }else{
-      targetIds=[...(matcher.get(norm(src.account))||[])];
+      targetIds=[...new Set(matcher.get(norm(src.account))||[])];
       if(targetIds.length===1)matchSource='exact_alias';
       if(targetIds.length>1)matchSource='ambiguous';
     }
