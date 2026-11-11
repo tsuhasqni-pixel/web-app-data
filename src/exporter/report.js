@@ -14,8 +14,9 @@ export function objectRowsToRows(rows){
 export function openPrintReport({title='Data Shaper Report',rows=[],note='' }={}){
   if(typeof window==='undefined'||typeof window.open!=='function')throw new Error('PDF出力はブラウザで実行してください');
   const safeRows=Array.isArray(rows)?rows:[];
-  const popup=window.open('','_blank','noopener,noreferrer');
+  const popup=window.open('','_blank');
   if(!popup)throw new Error('PDF出力ウィンドウを開けません。ポップアップを許可してください');
+  try{popup.opener=null}catch{}
   const table=safeRows.map((row,index)=>{
     const tag=index===0?'th':'td';
     const cells=(Array.isArray(row)?row:[row]).map(cell=>`<${tag}>${escapeHtml(cell)}</${tag}>`).join('');
