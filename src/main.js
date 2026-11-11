@@ -4,12 +4,13 @@ import {transform} from './transform/index.js';
 import {validate} from './validator/index.js';
 import {diagnoseCleaning,cleanRawTable} from './cleaner/index.js';
 import {cleanWorkbook,BATCH_LIMITS} from './batch/index.js';
-import {aggregateRecords,balanceSheetSections} from './aggregate/index.js';
+import {aggregateRecords,buildPivotTable,balanceSheetSections} from './aggregate/index.js';
 import {createDefaultStatementTemplate,parseStatementTemplateRows,mapTrialBalanceToTemplate,templateSections,templateToRows,aggregationToRows} from './accounting/template.js';
-import {toCSV} from './parser/csv.js';
+import {toCSV,toDelimited} from './parser/csv.js';
 import {exportCSV,exportObjectRows,exportBalanceSheet,saveText,saveCsv} from './exporter/index.js';
 import {buildCleaningZip,saveBlob} from './exporter/batch.js';
 import {objectRowsToRows,openPrintReport} from './exporter/report.js';
+import {saveXlsx} from './exporter/xlsx.js';
 import {buildRecipe,validateRecipe} from './recipe/index.js';
 import {reportPurposes,getReportPurpose,buildSimpleReport,simpleReportToRows,reportDisclaimer} from './reporting/index.js';
 import './style.css';
@@ -19,7 +20,7 @@ let sheets=[],selected=null,analysis=null,result=null,report=null;
 let workspaceTab='free';
 let profile='demand',orientation='auto',wideValueField='demand_qty';
 let options={trim:true,width:true,dates:true};
-let aggregateConfig={group1:'',valueField:'amount'};
+let aggregateConfig={rowField:'',columnField:'',valueField:'amount'};
 let reportConfig={purpose:'household',categoryField:'',amountField:'',flowField:''};
 let bsConfig={accountField:'account_name',amountField:'amount',debitField:'debit',creditField:'credit',overrides:{}};
 let statementTemplate=createDefaultStatementTemplate();
@@ -105,7 +106,7 @@ function renderPlanOverview(){
  const s=section('料金プラン');
  const grid=el('div',undefined,s,'plan-grid');
  const plans=[
-   {name:'Free',price:'¥0',className:'free',copy:'軽量集計、無料診断、簡易レポート。集計は「1項目でまとめて1数値を合計」まで無料。'},
+   {name:'Free',price:'¥0',className:'free',copy:'軽量集計、無料診断、簡易レポート。集計は縦軸×横軸の交差集計と数値合計まで無料。'},
    {name:'Lite',price:'¥480 / 月',className:'lite',copy:'データ整形、全分類の汎用レポート、Recipe再利用。Stripe TEST接続は次工程で有効化。'},
    {name:'Pro',price:'¥980 / 月',className:'pro',copy:'Liteの全機能＋法人・個人事業の決算/申告準備、勘定科目テンプレート、貸借一致確認。'}
  ];
@@ -150,6 +151,33 @@ function renderOutputChoice(parent,{title,filenameBase,rows,note='' }){
      else openPrintReport({title,rows,note});
    }catch(e){alert('出力失敗: '+e.message);}
  },box);
+}
+function inputFileInfo(){
+ const name=String(selected?.sourceFile||'data-shaper.csv');
+ const match=name.match(/\.([^.]+)$/);
+ const ext=String(match?.[1]||'csv').toLowerCase();
+ const safeExt=['csv','tsv','xlsx'].includes(ext)?ext:'csv';
+ const base=name.replace(/\.[^.]+$/,'')||'data-shaper';
+ return {name,ext:safeExt,base};
+}
+async function saveRowsLikeInput(rows,suffix='集計結果'){
+ const {ext,base}=inputFileInfo();
+ const filename=base+'-'+suffix+'.'+ext;
+ if(ext==='xlsx'){
+   await saveXlsx(filename,rows,{sheet:'集計結果'});
+   return;
+ }
+ if(ext==='tsv'){
+   const text='\ufeff'+toDelimited(rows,'\t');
+   saveText(filename,text,'text/tab-separated-values;charset=utf-8');
+   return;
+ }
+ saveCsv(filename,toCSV(rows));
+}
+function matrixToObjects(rows){
+ const [header,...data]=Array.isArray(rows)?rows:[];
+ if(!Array.isArray(header))return [];
+ return data.map(row=>Object.fromEntries(header.map((key,i)=>[String(key??''),row?.[i]??''])));
 }
 function clearResult(){result=null;report=null;}
 function setSelected(i){selected=sheets[Number(i)]||sheets[0];analysis=selected?detect(selected.rows):null;clearResult();bsConfig.overrides={};}
@@ -396,43 +424,50 @@ function numericRecordFields(){
 }
 function renderAggregate(){
  const wrap=el('div',undefined,app,'workspace-panel');
- el('p','入力データから「何を基準にまとめるか」と「どの数値を合計するか」の2項目を選ぶシンプルな集計です。',wrap,'lead');
+ el('p','縦軸と横軸を指定して、その交点ごとに数値を合計するクロス集計です。横軸を使わない1方向集計もできます。',wrap,'lead');
  if(!renderUpload(wrap))return;
  renderMappingWorkspace(wrap);renderPreview(wrap);
  const s=section('集計設定',wrap);
  if(!result)return el('p','変換プレビューを実行してください。',s,'status');
  const available=recordFields();
  const numericFields=numericRecordFields();
- if(!aggregateConfig.group1||!available.includes(aggregateConfig.group1)){
-   aggregateConfig.group1=available.find(x=>!numericFields.includes(x))||available[0]||'';
+ if(!aggregateConfig.rowField&&aggregateConfig.group1)aggregateConfig.rowField=aggregateConfig.group1;
+ if(!aggregateConfig.rowField||!available.includes(aggregateConfig.rowField)){
+   aggregateConfig.rowField=available.find(x=>!numericFields.includes(x))||available[0]||'';
  }
+ if(aggregateConfig.columnField&&!available.includes(aggregateConfig.columnField))aggregateConfig.columnField='';
  if(!aggregateConfig.valueField||!numericFields.includes(aggregateConfig.valueField)){
    aggregateConfig.valueField=numericFields[0]||'';
  }
- el('span','基準にする項目: ',s);
- select(available.map(x=>[x,x]),aggregateConfig.group1,v=>{aggregateConfig.group1=v;render();},s);
+ el('span','縦軸: ',s);
+ select(available.map(x=>[x,x]),aggregateConfig.rowField,v=>{aggregateConfig.rowField=v;if(aggregateConfig.columnField===v)aggregateConfig.columnField='';render();},s);
+ el('span','横軸: ',s);
+ select([['','使わない（1方向集計）'],...available.filter(x=>x!==aggregateConfig.rowField).map(x=>[x,x])],aggregateConfig.columnField,v=>{aggregateConfig.columnField=v;render();},s);
  el('span','合計する数値項目: ',s);
  select(numericFields.map(x=>[x,x]),aggregateConfig.valueField,v=>{aggregateConfig.valueField=v;render();},s);
- if(!aggregateConfig.group1||!aggregateConfig.valueField){
-   return el('p','基準項目と数値項目を選択してください。',s,'warning');
+ if(!aggregateConfig.rowField||!aggregateConfig.valueField){
+   return el('p','縦軸と数値項目を選択してください。',s,'warning');
  }
  try{
-   const rows=aggregateRecords(result.records,{groupBy:[aggregateConfig.group1],valueField:aggregateConfig.valueField,method:'sum'});
-   const totalKey='sum_'+aggregateConfig.valueField;
-   const view=rows.map(row=>({
-     [aggregateConfig.group1]:row[aggregateConfig.group1],
-     [aggregateConfig.valueField+' 合計']:row[totalKey],
-     '元データ件数':row.source_count
-   }));
-   el('p',aggregateConfig.group1+' ごとに '+aggregateConfig.valueField+' を合計しています。',s,'status');
-   renderTable(s,view,100);
-   renderOutputChoice(s,{
-     title:'Data Shaper 集計結果',
-     filenameBase:'data-shaper-aggregate',
-     rows:objectRowsToRows(view),
-     note:aggregateConfig.group1+' ごとに '+aggregateConfig.valueField+' を合計した軽量集計です。'
+   const pivot=buildPivotTable(result.records,{
+     rowField:aggregateConfig.rowField,
+     columnField:aggregateConfig.columnField,
+     valueField:aggregateConfig.valueField
    });
-   el('p','この軽量集計はFreeです。元ファイルはブラウザ内で処理し、サーバーへ保存しません。',s,'status');
+   const mode=aggregateConfig.columnField
+     ?aggregateConfig.rowField+' × '+aggregateConfig.columnField
+     :aggregateConfig.rowField;
+   el('p',mode+' を基準に '+aggregateConfig.valueField+' を合計しています。',s,'status');
+   renderTable(s,matrixToObjects(pivot.rows),200);
+   if(pivot.skippedValueCount)el('p','数値として読めなかった '+pivot.skippedValueCount+' 行は合計から除外しました。元データ自体は変更していません。',s,'warning');
+   const out=section('集計結果を抽出',wrap);
+   const info=inputFileInfo();
+   el('p','入力形式に合わせて集計表だけを返します。CSV→CSV、Excel→Excel'+(info.ext==='tsv'?'、TSV→TSV':'')+'。元ファイルは上書きしません。',out,'status');
+   button((info.ext==='xlsx'?'Excel':'CSV/TSV')+'で集計結果を抽出',async()=>{
+     try{await saveRowsLikeInput(pivot.rows,'集計結果');}
+     catch(e){alert('集計結果の出力失敗: '+e.message);}
+   },out);
+   el('p','出力ファイルには集計された表だけを入れ、入力データの明細は複製しません。処理はブラウザ内で完結します。',out,'status');
  }catch(e){el('p',e.message,s,'error');}
 }
 function renderReportPurposeGuide(parent,purpose){
