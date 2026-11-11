@@ -417,6 +417,9 @@ function renderRecipe(){
      aggregateConfig={...aggregateConfig,...(recipe.aggregateConfig||{})};
      bsConfig={...bsConfig,...(recipe.bsConfig||{}),overrides:{...(recipe.bsConfig?.overrides||recipe.bsConfig?.assignments||{})}};
      batchOptions={...batchOptions,...(recipe.batchOptions||{})};
+     if(Array.isArray(recipe.statementTemplate)&&recipe.statementTemplate.length)statementTemplate=recipe.statementTemplate.map(x=>({...x,aliases:[...(x.aliases||[])]}));
+     templateMappings={...(recipe.templateMappings||{})};
+     statementConfig={...statementConfig,...(recipe.statementConfig||{})};
      clearResult();render();
    }catch(e){alert('Recipe適用不可: '+e.message);}
  });
