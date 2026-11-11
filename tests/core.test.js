@@ -54,6 +54,16 @@ describe('local-first data workflow',()=>{
    expect(agg.find(x=>x.account_name==='Cash').sum_amount).toBe(150);
    expect(rows).toHaveLength(3);
  });
+ it('supports the simple two-field aggregation use case: item -> price total',()=>{
+   const rows=[
+     {product:'商品A',price:100},
+     {product:'商品A',price:250},
+     {product:'商品B',price:400}
+   ];
+   const agg=aggregateRecords(rows,{groupBy:['product'],valueField:'price',method:'sum'});
+   expect(agg.find(x=>x.product==='商品A')).toMatchObject({sum_price:350,source_count:2});
+   expect(agg.find(x=>x.product==='商品B')).toMatchObject({sum_price:400,source_count:1});
+ });
  it('aggregates by user-selected primary and secondary axes',()=>{
    const rows=[
      {sku_name:'A',location_name:'Tokyo',demand_qty:3},

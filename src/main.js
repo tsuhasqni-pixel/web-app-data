@@ -4,7 +4,7 @@ import {transform} from './transform/index.js';
 import {validate} from './validator/index.js';
 import {diagnoseCleaning,cleanRawTable} from './cleaner/index.js';
 import {cleanWorkbook,BATCH_LIMITS} from './batch/index.js';
-import {balanceSheetSections} from './aggregate/index.js';
+import {aggregateRecords,balanceSheetSections} from './aggregate/index.js';
 import {createDefaultStatementTemplate,parseStatementTemplateRows,mapTrialBalanceToTemplate,templateSections,templateToRows,aggregationToRows} from './accounting/template.js';
 import {toCSV} from './parser/csv.js';
 import {exportCSV,exportObjectRows,exportBalanceSheet,saveText} from './exporter/index.js';
@@ -17,7 +17,7 @@ let sheets=[],selected=null,analysis=null,result=null,report=null;
 let workspaceTab='free';
 let profile='demand',orientation='auto',wideValueField='demand_qty';
 let options={trim:true,width:true,dates:true};
-let aggregateConfig={group1:'',group2:'',valueField:'amount',method:'sum'};
+let aggregateConfig={group1:'',valueField:'amount'};
 let bsConfig={accountField:'account_name',amountField:'amount',debitField:'debit',creditField:'credit',overrides:{}};
 let statementTemplate=createDefaultStatementTemplate();
 let templateMappings={};
@@ -128,7 +128,7 @@ function renderTabs(){
  [
   ['free','無料診断'],
   ['pro','Proクリーニング'],
-  ['aggregate','勘定科目集計'],
+  ['aggregate','集計'],
   ['balance','決算書レイアウト']
  ].forEach(([id,label])=>{
    const b=button(label,()=>{workspaceTab=id;clearResult();render();},nav,'tab-button'+(workspaceTab===id?' active':''));
@@ -345,26 +345,49 @@ function renderAccountMapping(parent,agg){
    });
  }
 }
+function numericRecordFields(){
+ const available=recordFields();
+ return available.filter(field=>result?.records?.some(row=>{
+   const value=row[field];
+   if(value===null||value===undefined||value==='')return false;
+   return Number.isFinite(Number(String(value).replace(/,/g,'')));
+ }));
+}
 function renderAggregate(){
  const wrap=el('div',undefined,app,'workspace-panel');
- el('p','ここでの「集計」は、決算書テンプレートのどの勘定科目へ、入力ファイルのどの勘定科目を集めるかを決める作業です。統計的な平均・最大値を求める機能ではありません。',wrap,'lead');
- renderTemplateEditor(wrap);
+ el('p','入力データから「何を基準にまとめるか」と「どの数値を合計するか」の2項目を選ぶシンプルな集計です。',wrap,'lead');
  if(!renderUpload(wrap))return;
  renderMappingWorkspace(wrap);renderPreview(wrap);
- if(!result)return;
- renderSourceColumnConfig(wrap);
- const agg=currentStatementAggregation();if(!agg)return;
- renderAccountMapping(wrap,agg);
- const out=section('科目集計結果',wrap);
- renderTable(out,agg.rows.map(x=>({
-   order:x.order,
-   section:templateSections.find(([id])=>id===x.section)?.[1]||x.section,
-   account:x.label,
-   amount:x.amount,
-   source_accounts:x.source_accounts.join(' / ')
- })),100);
- button('この科目対応で集計し、結果CSVをすぐ返す',()=>saveText('data-shaper-account-aggregation.csv',toCSV(aggregationToRows(agg)),'text/csv;charset=utf-8'),out);
- el('p','元ファイルはブラウザ内で処理し、サーバーへ保存しません。',out,'status');
+ const s=section('集計設定',wrap);
+ if(!result)return el('p','変換プレビューを実行してください。',s,'status');
+ const available=recordFields();
+ const numericFields=numericRecordFields();
+ if(!aggregateConfig.group1||!available.includes(aggregateConfig.group1)){
+   aggregateConfig.group1=available.find(x=>!numericFields.includes(x))||available[0]||'';
+ }
+ if(!aggregateConfig.valueField||!numericFields.includes(aggregateConfig.valueField)){
+   aggregateConfig.valueField=numericFields[0]||'';
+ }
+ el('span','基準にする項目: ',s);
+ select(available.map(x=>[x,x]),aggregateConfig.group1,v=>{aggregateConfig.group1=v;render();},s);
+ el('span','合計する数値項目: ',s);
+ select(numericFields.map(x=>[x,x]),aggregateConfig.valueField,v=>{aggregateConfig.valueField=v;render();},s);
+ if(!aggregateConfig.group1||!aggregateConfig.valueField){
+   return el('p','基準項目と数値項目を選択してください。',s,'warning');
+ }
+ try{
+   const rows=aggregateRecords(result.records,{groupBy:[aggregateConfig.group1],valueField:aggregateConfig.valueField,method:'sum'});
+   const totalKey='sum_'+aggregateConfig.valueField;
+   const view=rows.map(row=>({
+     [aggregateConfig.group1]:row[aggregateConfig.group1],
+     [aggregateConfig.valueField+' 合計']:row[totalKey],
+     '元データ件数':row.source_count
+   }));
+   el('p',aggregateConfig.group1+' ごとに '+aggregateConfig.valueField+' を合計しています。',s,'status');
+   renderTable(s,view,100);
+   button('集計結果CSVをすぐ返す',()=>saveText('data-shaper-aggregate.csv',exportObjectRows(view),'text/csv;charset=utf-8'),s);
+   el('p','元ファイルはブラウザ内で処理し、サーバーへ保存しません。',s,'status');
+ }catch(e){el('p',e.message,s,'error');}
 }
 function renderBalance(){
  const wrap=el('div',undefined,app,'workspace-panel');
@@ -397,7 +420,7 @@ function renderRecipe(){
  if(!sheets.length||workspaceTab==='free')return;
  const s=section('Recipe / 再利用');
  button('現在の設定をRecipe保存',()=>{
-   const out=buildRecipe({sheets,analysis,options,profile,orientation,wideValueField,aggregateConfig,bsConfig,batchOptions});
+   const out=buildRecipe({sheets,analysis,options,profile,orientation,wideValueField,aggregateConfig,bsConfig,batchOptions,statementTemplate,templateMappings,statementConfig});
    saveText('data-shaper-recipe.json',JSON.stringify(out,null,2),'application/json');
  },s);
  const input=el('input',undefined,s);input.type='file';input.accept='.json';input.setAttribute('aria-label','Recipe JSONを読み込む');
