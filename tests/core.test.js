@@ -9,6 +9,7 @@ import {diagnoseCleaning,cleanRawTable} from '../src/cleaner/index.js';
 import {cleanWorkbook,BATCH_LIMITS} from '../src/batch/index.js';
 import {validate} from '../src/validator/index.js';
 import {exportCSV} from '../src/exporter/index.js';
+import {objectRowsToRows,openPrintReport} from '../src/exporter/report.js';
 import {reportPurposes,buildSimpleReport,simpleReportToRows} from '../src/reporting/index.js';
 import {scenarios} from './fixtures/scenarios.js';
 
@@ -73,6 +74,12 @@ describe('local-first data workflow',()=>{
    expect(out.categories.find(x=>x.category==='食費').amount).toBe(10000);
    const csvRows=simpleReportToRows(out,'household');
    expect(csvRows.some(r=>r[0]==='収支差額'&&r[1]===240000)).toBe(true);
+ });
+ it('converts object rows into table rows for CSV/PDF report export',()=>{
+   expect(objectRowsToRows([{商品:'A',価格:100},{商品:'B',価格:200}])).toEqual([
+     ['商品','価格'],['A',100],['B',200]
+   ]);
+   expect(()=>openPrintReport({title:'x',rows:[]})).toThrow('PDF出力はブラウザで実行してください');
  });
  it('supports the simple two-field aggregation use case: item -> price total',()=>{
    const rows=[
@@ -191,7 +198,7 @@ describe('local-first data workflow',()=>{
    expect(cleaned.rows[1][0]).toBe('');
    expect(cleaned.outputRows).toBe(3);
  });
- it('Pro batch cleaning can process multiple sheets without deleting duplicates by default',()=>{
+ it('Lite batch data shaping can process multiple sheets without deleting duplicates by default',()=>{
    const sheets=[
      {name:'A',sourceFile:'book.xlsx',rows:[['SKU'],[' A '],[' A ']]},
      {name:'B',sourceFile:'book.xlsx',rows:[['SKU'],['Ｂ']]}
