@@ -11,18 +11,18 @@ export function sourceSignature(sheets,analysis){
   for(const ch of stable(payload)){h^=ch.charCodeAt(0);h=Math.imul(h,16777619);}
   return 'sig-v1-'+(h>>>0).toString(16).padStart(8,'0');
 }
-export function buildRecipe({sheets,analysis,options,profile,orientation,wideValueField,aggregateConfig,bsConfig,batchOptions}){
+export function buildRecipe({sheets,analysis,options,profile,orientation,wideValueField,aggregateConfig,bsConfig,batchOptions,statementTemplate,templateMappings,statementConfig}){
   return {
-    schema_version:3,
+    schema_version:4,
     source_signature:sourceSignature(sheets,analysis),
     source_headers:analysis.header,
     header_row:analysis.headerRow+1,
     mapping:analysis.mapping,
-    options,profile,orientation,wideValueField,aggregateConfig,bsConfig,batchOptions
+    options,profile,orientation,wideValueField,aggregateConfig,bsConfig,batchOptions,statementTemplate,templateMappings,statementConfig
   };
 }
 export function validateRecipe(recipe,{sheets,analysis,allowedFields}){
-  if(!recipe||![1,2,3].includes(recipe.schema_version))throw new Error('未対応のRecipe versionです');
+  if(!recipe||![1,2,3,4].includes(recipe.schema_version))throw new Error('未対応のRecipe versionです');
   if(!Array.isArray(recipe.source_headers))throw new Error('Recipeにsource_headersがありません');
   if(!recipe.mapping||Object.values(recipe.mapping).some(v=>v&&!allowedFields.includes(v)))throw new Error('Recipeのmappingが不正です');
   const exactHeaders=stable(recipe.source_headers)===stable(analysis.header);
