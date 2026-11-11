@@ -136,5 +136,6 @@ export function buildProgrammedBalanceSheet(records,{
 }
 
 export function buildBalanceSheet(records,{accountField='account_name',amountField='amount',assignments={}}={}){
-  return buildProgrammedBalanceSheet(records,{accountField,amountField,overrides:assignments});
+  const sheet=buildProgrammedBalanceSheet(records,{accountField,amountField,overrides:assignments});
+  return {...sheet,unclassified:sheet.unclassified.map(({account,amount})=>({account,amount}))};
 }
