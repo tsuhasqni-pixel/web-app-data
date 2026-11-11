@@ -316,7 +316,7 @@ function renderTemplateEditor(parent){
      render();
    }catch(e){alert('テンプレート読込失敗: '+e.message);}
  });
- button('現在のテンプレートをCSV保存',()=>saveText('data-shaper-statement-template.csv',toCSV(templateToRows(statementTemplate)),'text/csv;charset=utf-8'),s,'secondary-button');
+ button('現在のテンプレートをCSV保存',()=>saveCsv('data-shaper-statement-template.csv',toCSV(templateToRows(statementTemplate))),s,'secondary-button');
  const table=el('table',undefined,s);const head=el('tr',undefined,table);
  ['順','区分','勘定科目','別名（|区切り）','残高側','操作'].forEach(x=>el('th',x,head));
  statementTemplate.slice().sort((a,b)=>a.order-b.order).forEach((item,index)=>{
@@ -442,7 +442,7 @@ function renderReportPurposeGuide(parent,purpose){
  purpose.suggestedFields.forEach(x=>el('span',x,fields,'guide-chip'));
  el('h3','入力例',s);
  renderTable(s,purpose.sample,10);
- button('この入力例をサンプルCSVで保存',()=>saveText('data-shaper-'+purpose.id+'-sample.csv',exportObjectRows(purpose.sample),'text/csv;charset=utf-8'),s,'secondary-button');
+ button('この入力例をサンプルCSVで保存',()=>saveCsv('data-shaper-'+purpose.id+'-sample.csv',exportObjectRows(purpose.sample)),s,'secondary-button');
  el('p','サンプル値は使い方説明用であり、利用者の実績値・税務判断・推奨値ではありません。',s,'status');
 }
 
@@ -507,9 +507,9 @@ function renderStatementPreview(parent,agg,purpose){
 
 function renderBalance(){
  const wrap=el('div',undefined,app,'workspace-panel');
- el('p','法人・個人事業・家計を同じ入口から整理します。Freeは簡易レポート、Proは詳細な決算・申告準備や再利用まで扱います。',wrap,'lead');
+ el('p','法人・個人事業・家計を同じ入口から整理します。Freeは簡易サマリー、Liteは家計・自由形式の詳細レポート、Proは法人・個人事業の決算・申告準備を扱います。',wrap,'lead');
  const purposeSection=section('レポートの目的',wrap);
- el('span','Free / Pro',purposeSection,'plan-badge mixed');
+ el('span','Free / Lite / Pro',purposeSection,'plan-badge mixed');
  select(reportPurposes.map(x=>[x.id,x.label]),reportConfig.purpose,v=>{reportConfig.purpose=v;reportConfig.categoryField='';reportConfig.amountField='';reportConfig.flowField='';render();},purposeSection);
  const purpose=getReportPurpose(reportConfig.purpose);
  el('p',purpose.description,purposeSection,'status');
@@ -576,7 +576,7 @@ function renderBalance(){
      const note=section('Pro：白色申告向け整理',wrap);
      el('p','収入・費目別の詳細集計を入力準備資料として出します。税務上の必要経費該当性や申告書の完成判断は行いません。',note,'status');
    }else if(purpose.id==='household'){
-     const note=section('Pro：家計の詳細利用',wrap);
+     const note=section('Lite：家計の詳細利用',wrap);
      el('p','提出書類ではなく、家計管理・相談用の詳細内訳として利用します。過去データが追加された場合だけ期間比較を行う設計にします。',note,'status');
    }
  }catch(e){el('p',e.message,s,'error');}
