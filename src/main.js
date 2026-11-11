@@ -4,7 +4,7 @@ import {transform} from './transform/index.js';
 import {validate} from './validator/index.js';
 import {diagnoseCleaning,cleanRawTable} from './cleaner/index.js';
 import {cleanWorkbook,BATCH_LIMITS} from './batch/index.js';
-import {aggregateRecords,buildBalanceSheet,balanceSheetSections} from './aggregate/index.js';
+import {aggregateRecords,buildProgrammedBalanceSheet,balanceSheetSections,programmedBalanceRules} from './aggregate/index.js';
 import {exportCSV,exportObjectRows,exportBalanceSheet,saveText} from './exporter/index.js';
 import {buildCleaningZip,saveBlob} from './exporter/batch.js';
 import {buildRecipe,validateRecipe} from './recipe/index.js';
@@ -16,7 +16,7 @@ let workspaceTab='free';
 let profile='demand',orientation='auto',wideValueField='demand_qty';
 let options={trim:true,width:true,dates:true};
 let aggregateConfig={group1:'',group2:'',valueField:'amount',method:'sum'};
-let bsConfig={accountField:'account_name',amountField:'amount',assignments:{}};
+let bsConfig={accountField:'account_name',amountField:'amount',debitField:'debit',creditField:'credit',overrides:{}};
 let selectedBatchSheets=new Set(),batchResults=[];
 let batchOptions={trim:true,width:true,removeExactDuplicates:false};
 let authState={loaded:false,loading:false,authenticated:false,user:null,entitlement:{tier:'free',pro:false,source:'stripe',reason:'not_authenticated'}};
@@ -107,7 +107,7 @@ function renderProLocked(){
 function select(values,value,onChange,parent){const e=el('select',undefined,parent);for(const [v,t] of values){const o=el('option',t,e);o.value=v;}e.value=value;e.addEventListener('change',()=>onChange(e.value));return e;}
 function section(title,parent=app){const s=el('section',undefined,parent);el('h2',title,s);return s;}
 function clearResult(){result=null;report=null;}
-function setSelected(i){selected=sheets[Number(i)]||sheets[0];analysis=selected?detect(selected.rows):null;clearResult();bsConfig.assignments={};}
+function setSelected(i){selected=sheets[Number(i)]||sheets[0];analysis=selected?detect(selected.rows):null;clearResult();bsConfig.overrides={};}
 function recordFields(){if(!result)return [];return [...new Set(result.records.flatMap(r=>Object.keys(r)))].filter(x=>!['source_file','source_sheet','source_row'].includes(x));}
 function renderTable(parent,rows,limit=15){
  if(!rows?.length){el('p','表示できるデータがありません。',parent,'status');return;}
@@ -232,24 +232,80 @@ function renderPro(){
  select([['demand','DemandScope'],['inventory','Inventory Manager'],['generic','Generic Clean CSV']],profile,v=>{profile=v;if(result)report=validate(analysis,result,profile);render();},out);
  if(result){[...report.errors.map(x=>'エラー: '+x),...report.warnings.map(x=>'注意: '+x)].forEach(t=>el('p',t,out,t.startsWith('エラー')?'error':'warning'));const b=button('CSVを出力',()=>saveText('data-shaper-'+profile+'.csv',exportCSV(result.records,profile),'text/csv;charset=utf-8'),out);b.disabled=report.errors.length>0;}
 }
+function numericRecordFields(){
+ const available=recordFields();
+ return available.filter(field=>result?.records?.some(row=>{
+   const value=row[field];
+   if(value===null||value===undefined||value==='')return false;
+   return Number.isFinite(Number(String(value).replace(/,/g,'')));
+ }));
+}
 function renderAggregate(){
- const wrap=el('div',undefined,app,'workspace-panel');el('p','クリーニング後データを、指定キーで合計・平均・件数・最小・最大に集計します。',wrap,'lead');
+ const wrap=el('div',undefined,app,'workspace-panel');
+ el('p','「何を軸に」「何を集計するか」を選び、その条件で集計結果を作ります。元ファイルはサーバーへ送信・保存しません。',wrap,'lead');
  if(!renderUpload(wrap))return;renderMappingWorkspace(wrap);renderPreview(wrap);
- const s=section('集計設定',wrap);if(!result)return el('p','変換プレビューを実行してください。',s,'status');
- const available=recordFields();if(!aggregateConfig.group1||!available.includes(aggregateConfig.group1))aggregateConfig.group1=available[0]||'';if(!available.includes(aggregateConfig.valueField))aggregateConfig.valueField=available.find(x=>['amount','demand_qty','inventory_on_hand','debit','credit'].includes(x))||available[0]||'';
- el('span','キー1: ',s);select(available.map(x=>[x,x]),aggregateConfig.group1,v=>{aggregateConfig.group1=v;render();},s);el('span','キー2: ',s);select([['','なし'],...available.filter(x=>x!==aggregateConfig.group1).map(x=>[x,x])],aggregateConfig.group2,v=>{aggregateConfig.group2=v;render();},s);el('span','数値列: ',s);select(available.map(x=>[x,x]),aggregateConfig.valueField,v=>{aggregateConfig.valueField=v;render();},s);select([['sum','合計'],['avg','平均'],['count','件数'],['min','最小'],['max','最大']],aggregateConfig.method,v=>{aggregateConfig.method=v;render();},s);
- try{const rows=aggregateRecords(result.records,{groupBy:[aggregateConfig.group1,aggregateConfig.group2].filter(Boolean),valueField:aggregateConfig.valueField,method:aggregateConfig.method});renderTable(s,rows,30);button('集計CSVを出力',()=>saveText('data-shaper-aggregate.csv',exportObjectRows(rows),'text/csv;charset=utf-8'),s);}catch(e){el('p',e.message,s,'error');}
+ const s=section('集計条件',wrap);if(!result)return el('p','変換プレビューを実行してください。',s,'status');
+ const available=recordFields(),numericFields=numericRecordFields();
+ if(!aggregateConfig.group1||!available.includes(aggregateConfig.group1))aggregateConfig.group1=available[0]||'';
+ if(aggregateConfig.group2&&!available.includes(aggregateConfig.group2))aggregateConfig.group2='';
+ if(!numericFields.includes(aggregateConfig.valueField))aggregateConfig.valueField=numericFields.find(x=>['amount','demand_qty','inventory_on_hand','debit','credit'].includes(x))||numericFields[0]||'';
+ el('p','集計軸は「何ごとにまとめるか」、集計対象は「何を合計・平均などするか」です。',s,'status');
+ el('span','集計軸1: ',s);select(available.map(x=>[x,x]),aggregateConfig.group1,v=>{aggregateConfig.group1=v;if(aggregateConfig.group2===v)aggregateConfig.group2='';render();},s);
+ el('span','集計軸2: ',s);select([['','なし'],...available.filter(x=>x!==aggregateConfig.group1).map(x=>[x,x])],aggregateConfig.group2,v=>{aggregateConfig.group2=v;render();},s);
+ el('span','集計する数値項目: ',s);select((numericFields.length?numericFields:available).map(x=>[x,x]),aggregateConfig.valueField,v=>{aggregateConfig.valueField=v;render();},s);
+ el('span','集計方法: ',s);select([['sum','合計'],['avg','平均'],['count','件数'],['min','最小'],['max','最大']],aggregateConfig.method,v=>{aggregateConfig.method=v;render();},s);
+ try{
+   const groupBy=[aggregateConfig.group1,aggregateConfig.group2].filter(Boolean);
+   const rows=aggregateRecords(result.records,{groupBy,valueField:aggregateConfig.valueField,method:aggregateConfig.method});
+   el('p','現在の条件: '+groupBy.join(' × ')+' を軸に '+aggregateConfig.valueField+' を '+({sum:'合計',avg:'平均',count:'件数',min:'最小',max:'最大'}[aggregateConfig.method]||aggregateConfig.method),s,'status');
+   renderTable(s,rows,30);
+   button('この条件で集計してCSVを即返却',()=>saveText('data-shaper-aggregate.csv',exportObjectRows(rows),'text/csv;charset=utf-8'),s);
+ }catch(e){el('p',e.message,s,'error');}
 }
 function renderBalance(){
- const wrap=el('div',undefined,app,'workspace-panel');el('p','決算書レイアウトは表示支援です。会計分類を推測で確定せず、科目をユーザーが指定した欄へ並べます。',wrap,'lead');
+ const wrap=el('div',undefined,app,'workspace-panel');
+ el('p','試算表を固定の集計ルールへ自動仕分けし、資産＝負債＋純資産が一致するか確認します。未分類・曖昧科目は勝手に確定せず残します。',wrap,'lead');
  if(!renderUpload(wrap))return;renderMappingWorkspace(wrap);renderPreview(wrap);
- const s=section('貸借対照表プレビュー',wrap);if(!result)return el('p','変換プレビューを実行してください。',s,'status');
- const available=recordFields();if(!available.includes(bsConfig.accountField))bsConfig.accountField=available.includes('account_name')?'account_name':available[0]||'';if(!available.includes(bsConfig.amountField))bsConfig.amountField=available.includes('amount')?'amount':available.find(x=>['debit','credit'].includes(x))||available[0]||'';
- el('span','科目列: ',s);select(available.map(x=>[x,x]),bsConfig.accountField,v=>{bsConfig.accountField=v;bsConfig.assignments={};render();},s);el('span','金額列: ',s);select(available.map(x=>[x,x]),bsConfig.amountField,v=>{bsConfig.amountField=v;render();},s);
- const accounts=[...new Set(result.records.map(r=>String(r[bsConfig.accountField]??'')).filter(Boolean))];const mapBox=el('div',undefined,s,'mapping-grid');accounts.slice(0,100).forEach(account=>{const line=el('div',undefined,mapBox,'mapping-row');el('span',account,line);select([['','未分類'],...balanceSheetSections],bsConfig.assignments[account]||'',v=>{bsConfig.assignments[account]=v;render();},line);});
- const sheet=buildBalanceSheet(result.records,bsConfig);const grid=el('div',undefined,s,'statement-grid');for(const [id,label] of balanceSheetSections){const card=el('div',undefined,grid,'statement-card');el('h4',label,card);sheet.sections[id].items.forEach(x=>el('div',x.account+'　'+x.amount.toLocaleString(),card,'statement-line'));el('strong','合計 '+sheet.sections[id].total.toLocaleString(),card);}
- if(sheet.unclassified.length){const card=el('div',undefined,grid,'statement-card');el('h4','未分類',card);sheet.unclassified.slice(0,30).forEach(x=>el('div',x.account+'　'+x.amount.toLocaleString(),card,'statement-line'));}
- el('p','資産 '+sheet.totals.assets.toLocaleString()+' / 負債 '+sheet.totals.liabilities.toLocaleString()+' / 純資産 '+sheet.totals.equity.toLocaleString()+' / 貸借差額 '+sheet.totals.difference.toLocaleString(),s,Math.abs(sheet.totals.difference)>1e-8?'warning':'status');button('プレビューCSVを出力',()=>saveText('data-shaper-balance-sheet.csv',exportBalanceSheet(sheet),'text/csv;charset=utf-8'),s);
+ const s=section('プログラム済み決算集計',wrap);if(!result)return el('p','変換プレビューを実行してください。',s,'status');
+ const available=recordFields();
+ if(!available.includes(bsConfig.accountField))bsConfig.accountField=available.includes('account_name')?'account_name':available[0]||'';
+ if(!available.includes(bsConfig.amountField))bsConfig.amountField=available.includes('amount')?'amount':'';
+ if(!available.includes(bsConfig.debitField))bsConfig.debitField=available.includes('debit')?'debit':'';
+ if(!available.includes(bsConfig.creditField))bsConfig.creditField=available.includes('credit')?'credit':'';
+ el('span','科目列: ',s);select(available.map(x=>[x,x]),bsConfig.accountField,v=>{bsConfig.accountField=v;bsConfig.overrides={};render();},s);
+ if(available.includes('amount')){
+   el('span','残高列: ',s);select([['','借方・貸方から計算'],...available.map(x=>[x,x])],bsConfig.amountField,v=>{bsConfig.amountField=v;render();},s);
+ }
+ if(!bsConfig.amountField){
+   el('span','借方列: ',s);select([['','なし'],...available.map(x=>[x,x])],bsConfig.debitField,v=>{bsConfig.debitField=v;render();},s);
+   el('span','貸方列: ',s);select([['','なし'],...available.map(x=>[x,x])],bsConfig.creditField,v=>{bsConfig.creditField=v;render();},s);
+ }
+ const sheet=buildProgrammedBalanceSheet(result.records,bsConfig);
+ const rules=section('集計ルール',wrap);
+ programmedBalanceRules.forEach(rule=>el('p',rule.label+'：'+rule.patterns.slice(0,8).join(' / ')+(rule.patterns.length>8?' …':''),rules,'status'));
+ const classified=section('自動仕分け結果',wrap);
+ const accounts=[...sheet.classified,...sheet.unclassified];
+ renderTable(classified,accounts.map(x=>({account:x.account,section:x.section,amount:x.amount,classification:x.classification_source})),100);
+ if(sheet.unclassified.length){
+   el('p','未分類 '+sheet.unclassified.length+' 科目があります。下で手動補正すると再計算します。',classified,'warning');
+   const mapBox=el('div',undefined,classified,'mapping-grid');
+   sheet.unclassified.forEach(item=>{
+     const line=el('div',undefined,mapBox,'mapping-row');
+     el('span',item.account,line);
+     select([['','未分類'],...balanceSheetSections],bsConfig.overrides[item.account]||'',v=>{bsConfig.overrides[item.account]=v;render();},line);
+   });
+ }
+ const grid=el('div',undefined,s,'statement-grid');
+ for(const [id,label] of balanceSheetSections){
+   const card=el('div',undefined,grid,'statement-card');el('h4',label,card);
+   sheet.sections[id].items.forEach(x=>el('div',x.account+'　'+x.amount.toLocaleString(),card,'statement-line'));
+   el('strong','合計 '+sheet.sections[id].total.toLocaleString(),card);
+ }
+ const statusText=sheet.totals.isBalanced?'一致：資産＝負債＋純資産':'不一致：貸借差額 '+sheet.totals.difference.toLocaleString()+' / 未分類 '+sheet.unclassified.length+' 科目';
+ el('p','資産 '+sheet.totals.assets.toLocaleString()+' / 負債 '+sheet.totals.liabilities.toLocaleString()+' / 純資産 '+sheet.totals.equity.toLocaleString(),s,'status');
+ el('p',statusText,s,sheet.totals.isBalanced?'status':'warning');
+ button('計算結果をCSVで即返却',()=>saveText('data-shaper-balance-sheet.csv',exportBalanceSheet(sheet),'text/csv;charset=utf-8'),s);
+ el('p','入力ファイル自体はブラウザ内で処理し、サーバーには保存しません。',s,'status');
 }
 function renderRecipe(){
  if(!sheets.length||workspaceTab==='free')return;
