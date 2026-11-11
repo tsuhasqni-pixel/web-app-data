@@ -29,7 +29,7 @@ let statementConfig={accountField:'account_name',amountField:'amount',debitField
 let selectedBatchSheets=new Set(),batchResults=[];
 let batchOptions={trim:true,width:true,removeExactDuplicates:false};
 let authState={loaded:false,loading:false,authenticated:false,user:null,entitlement:{tier:'free',pro:false,source:'stripe',reason:'not_authenticated'}};
-let billingState={loaded:false,loading:false,enabled:false,ready:false,mode:'test',missing:[]};
+let billingState={loaded:false,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,mode:'test',missing:[],proMissing:[],liteMissing:[]};
 
 function el(tag,text,parent,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;(parent||app).appendChild(e);return e;}
 function button(text,onClick,parent,cls){const b=el('button',text,parent,cls);b.type='button';b.addEventListener('click',onClick);return b;}
@@ -51,15 +51,29 @@ async function refreshBilling(){
  try{
    const res=await fetch('/api/billing/status',{credentials:'same-origin',headers:{accept:'application/json'}});
    const data=await res.json();
-   billingState={loaded:true,loading:false,enabled:data.billing_enabled===true,ready:data.ready_for_test===true,mode:data.mode||'test',missing:Array.isArray(data.missing)?data.missing:[]};
+   billingState={
+     loaded:true,loading:false,enabled:data.billing_enabled===true,
+     ready:data.ready_for_test===true,
+     proReady:data.pro_ready_for_test===true,
+     liteReady:data.lite_ready_for_test===true,
+     mode:data.mode||'test',
+     missing:Array.isArray(data.missing)?data.missing:[],
+     proMissing:Array.isArray(data.pro_missing)?data.pro_missing:[],
+     liteMissing:Array.isArray(data.lite_missing)?data.lite_missing:[]
+   };
  }catch{
-   billingState={loaded:true,loading:false,enabled:false,ready:false,mode:'test',missing:['status_unavailable']};
+   billingState={loaded:true,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,mode:'test',missing:['status_unavailable'],proMissing:['status_unavailable'],liteMissing:['status_unavailable']};
  }
  render();
 }
-async function startTestCheckout(){
+async function startTestCheckout(tier='pro'){
  try{
-   const res=await fetch('/api/billing/checkout',{method:'POST',credentials:'same-origin',headers:{accept:'application/json'}});
+   const res=await fetch('/api/billing/checkout',{
+     method:'POST',
+     credentials:'same-origin',
+     headers:{accept:'application/json','content-type':'application/json'},
+     body:JSON.stringify({tier})
+   });
    const data=await res.json();
    if(!res.ok||!data?.url)throw new Error(data?.error||'checkout_failed');
    location.assign(data.url);
@@ -107,8 +121,8 @@ function renderPlanOverview(){
  const grid=el('div',undefined,s,'plan-grid');
  const plans=[
    {name:'Free',price:'¥0',className:'free',copy:'軽量集計、無料診断、簡易レポート。集計は縦軸×横軸の交差集計と数値合計まで無料。'},
-   {name:'Lite',price:'¥480 / 月',className:'lite',copy:'データ整形、全分類の汎用レポート、Recipe再利用。Stripe TEST接続は次工程で有効化。'},
-   {name:'Pro',price:'¥980 / 月',className:'pro',copy:'Liteの全機能＋法人・個人事業の決算/申告準備、勘定科目テンプレート、貸借一致確認。'}
+   {name:'Lite',price:'月額 ¥480（支払総額）',className:'lite',copy:'データ整形、全分類の汎用レポート、Recipe再利用。'},
+   {name:'Pro',price:'月額 ¥980（支払総額）',className:'pro',copy:'Liteの全機能＋法人・個人事業の決算/申告準備、勘定科目テンプレート、貸借一致確認。'}
  ];
  plans.forEach(plan=>{
    const card=el('div',undefined,grid,'plan-card '+plan.className);
@@ -116,7 +130,7 @@ function renderPlanOverview(){
    el('span',plan.price,card,'plan-price');
    el('p',plan.copy,card);
  });
- el('p','現在のStripe TEST決済はPro ¥980のみ接続済みです。Liteは価格階層を先に実装し、既存Proを壊さず別Priceとして接続します。',s,'status');
+ el('p','販売価格は Free ¥0 / Lite 月額¥480 / Pro 月額¥980 で固定します。Stripe TESTでは接続済みのTierだけ購入ボタンを有効化します。',s,'status');
 }
 function renderProLocked(){
  const wrap=el('div',undefined,app,'workspace-panel');
@@ -132,7 +146,7 @@ function renderProLocked(){
       el('p','Stripe TEST接続状態を確認しています。',s,'status');
     }else if(billingState.ready){
       el('p','現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
-      button('TEST Proを開始（月額 ¥980）',startTestCheckout,s);
+      button('TEST Proを開始（月額 ¥980）',()=>startTestCheckout('pro'),s);
     }else{
       el('p','Stripe TEST決済は準備中です。',s,'status');
     }
@@ -507,10 +521,15 @@ function renderInlinePaidGate(parent,requiredTier){
    el('p','決算・勘定科目対応はPro機能です。Googleログインだけでは開放せず、Stripe entitlementを確認します。',s,'pro-note');
    if(billingState.ready){
      el('p','現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
-     button('TEST Proを開始（月額 ¥980）',startTestCheckout,s);
+     button('TEST Proを開始（月額 ¥980）',()=>startTestCheckout('pro'),s);
    }
  }else{
-   el('p','Lite '+price+' の機能階層は実装済みですが、Lite用Stripe TEST Priceはまだ接続していません。現在のPro契約者はLite機能も利用できます。',s,'pro-note');
+   if(billingState.liteReady){
+     el('p','現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
+     button('TEST Liteを開始（月額 ¥480）',()=>startTestCheckout('lite'),s);
+   }else{
+     el('p','Liteの価格は月額¥480で確定済みです。Stripe TEST Priceが未接続の間は購入ボタンを開放しません。現在のPro契約者はLite機能も利用できます。',s,'pro-note');
+   }
  }
 }
 

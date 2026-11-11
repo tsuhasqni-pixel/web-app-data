@@ -2,7 +2,7 @@
 
 Local-first data preparation workbench for company CSV/XLSX data.
 
-Status: **development / not production-ready**. No customer data is uploaded to a server. Review every inferred mapping and destructive transformation before export.
+Status: **pre-sale validation / not production-ready**. No customer data is uploaded to a server. Review every inferred mapping and destructive transformation before export.
 
 ## Six-stage workflow
 Inspect → Detect → Map → Confirm → Transform → Validate.
@@ -21,11 +21,11 @@ See development branch for the initial implementation.
   - Local-first diagnostics and safe data-shaping preview.
   - Lightweight aggregation: choose a vertical axis, an optional horizontal axis, and one numeric field. Data Shaper can create a cross-tab/pivot-style sum at each vertical × horizontal intersection.
   - Simple report preview/export with top-five categories.
-- **Lite — ¥480/month (tier implemented; Stripe TEST Price not connected yet)**
+- **Lite — ¥480/month (final launch price; Stripe TEST Price connection pending)**
   - Batch data shaping / normalization.
   - Full household and custom-purpose report detail.
   - Recipe save/reuse.
-- **Pro — ¥980/month (existing Stripe TEST checkout)**
+- **Pro — ¥980/month (final launch price; existing Stripe TEST checkout)**
   - Everything in Lite.
   - Corporate and sole-proprietor accounting preparation.
   - Statement templates, source-account mapping, many-to-one rollups, and balance reconciliation.
@@ -65,3 +65,14 @@ The starter template is only a practical Japan-GAAP balance-sheet starter. It is
   - The result can be extracted in the same file format as the input (CSV/TSV/XLSX).
   - No accounting template is involved.
 - **Statement layout** is the accounting workflow. It owns the statement template, trial-balance account mapping, many-to-one account rollups, and balance-sheet reconciliation.
+
+## Sale gate
+Public paid sale remains blocked until all of the following pass:
+- Lite and Pro Stripe TEST Checkout both create the correct subscription tier.
+- Webhook entitlement resolves Free / Lite / Pro correctly; Pro inherits Lite access but Lite never receives Pro accounting access.
+- CSV / TSV / XLSX matching-format aggregation extraction passes with real files.
+- CSV and PDF report export passes for Free/Lite/Pro report paths.
+- Google OAuth remains identity-only; email strings never grant paid access.
+- No live-mode Stripe mutation occurs before the TEST gate passes.
+
+Launch prices are fixed at **Free ¥0 / Lite ¥480 per month / Pro ¥980 per month**. Consumer-facing UI displays the payment total rather than a tax-exclusive teaser price.

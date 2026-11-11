@@ -187,15 +187,25 @@ describe('session, logout, and entitlement boundary',()=>{
  it('Google identity never grants Pro while Stripe billing is disabled',async()=>{
    const entitlement=await resolveEntitlement({DATA_SHAPER_BILLING_ENABLED:'false'},'usr_12345678-1234-1234-1234-123456789abc');
    expect(entitlement.pro).toBe(false);
+   expect(entitlement.lite).toBe(false);
    expect(entitlement.source).toBe('stripe');
    expect(entitlement.reason).toBe('billing_disabled');
  });
- it('Pro query is keyed by internal user_id and Data Shaper product, not email',()=>{
+ it('paid tier query is keyed by internal user_id and Data Shaper product keys, not email',()=>{
    const src=readFileSync(new URL('../src/auth/store.js',import.meta.url),'utf8');
    const segment=src.slice(src.indexOf('export async function resolveEntitlement'));
    expect(segment).toContain("user_id=?");
-   expect(segment).toContain("product_key='data-shaper-pro'");
+   expect(segment).toContain("'data-shaper-pro','data-shaper-lite'");
    expect(segment).not.toContain('email=?');
+ });
+ it('resolves Lite and Pro with Pro taking precedence',async()=>{
+   const user='usr_12345678-1234-1234-1234-123456789abc';
+   const liteDb={prepare(){return {bind(){return this},first:async()=>({product_key:'data-shaper-lite',status:'active'})}}};
+   const proDb={prepare(){return {bind(){return this},first:async()=>({product_key:'data-shaper-pro',status:'active'})}}};
+   const lite=await resolveEntitlement({DATA_SHAPER_BILLING_ENABLED:'true',DB:liteDb},user);
+   expect(lite).toMatchObject({tier:'lite',lite:true,pro:false,source:'stripe'});
+   const pro=await resolveEntitlement({DATA_SHAPER_BILLING_ENABLED:'true',DB:proDb},user);
+   expect(pro).toMatchObject({tier:'pro',lite:true,pro:true,source:'stripe'});
  });
 });
 

@@ -1,6 +1,10 @@
 import {safeEqual,te} from '../auth/crypto.js';
 
 const STRIPE_API='https://api.stripe.com/v1';
+export const DATA_SHAPER_TIERS={
+  lite:{productKey:'data-shaper-lite',envKey:'DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID',monthlyJpy:480},
+  pro:{productKey:'data-shaper-pro',envKey:'DATA_SHAPER_STRIPE_TEST_PRICE_ID',monthlyJpy:980}
+};
 
 function clean(v){return typeof v==='string'?v.trim():''}
 function isTestSecret(v){return /^(?:sk|rk)_test_[A-Za-z0-9_]+$/.test(v)}
@@ -9,29 +13,46 @@ function isWebhookSecret(v){return /^whsec_[A-Za-z0-9]+$/.test(v)}
 
 export function billingConfig(env={}){
   const secret=clean(env.STRIPE_TEST_SECRET_KEY);
-  const priceId=clean(env.DATA_SHAPER_STRIPE_TEST_PRICE_ID);
+  const proPriceId=clean(env.DATA_SHAPER_STRIPE_TEST_PRICE_ID);
+  const litePriceId=clean(env.DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID);
   const webhookSecret=clean(env.DATA_SHAPER_STRIPE_WEBHOOK_SECRET);
   const origin=clean(env.APP_ORIGIN);
   return {
     enabled:env.DATA_SHAPER_BILLING_ENABLED==='true',
     secret,
-    priceId,
+    priceId:proPriceId,
+    proPriceId,
+    litePriceId,
     webhookSecret,
     origin,
     secretConfigured:isTestSecret(secret),
-    priceConfigured:isPrice(priceId),
+    priceConfigured:isPrice(proPriceId),
+    proPriceConfigured:isPrice(proPriceId),
+    litePriceConfigured:isPrice(litePriceId),
     webhookConfigured:isWebhookSecret(webhookSecret),
     originConfigured:/^https:\/\//.test(origin)
   };
 }
-export function billingMissing(env={}){
+export function billingMissing(env={},tier='pro'){
   const c=billingConfig(env),missing=[];
   if(!c.secretConfigured)missing.push('STRIPE_TEST_SECRET_KEY');
-  if(!c.priceConfigured)missing.push('DATA_SHAPER_STRIPE_TEST_PRICE_ID');
+  if(tier==='lite'&&!c.litePriceConfigured)missing.push('DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID');
+  if(tier==='pro'&&!c.proPriceConfigured)missing.push('DATA_SHAPER_STRIPE_TEST_PRICE_ID');
   if(!c.webhookConfigured)missing.push('DATA_SHAPER_STRIPE_WEBHOOK_SECRET');
   if(!c.originConfigured)missing.push('APP_ORIGIN');
   if(!env?.DB?.prepare)missing.push('DB');
   return missing;
+}
+export function tierBillingConfig(env={},tier='pro'){
+  const plan=DATA_SHAPER_TIERS[tier];
+  if(!plan)throw new Error('invalid_tier');
+  const c=billingConfig(env);
+  return {
+    ...plan,
+    tier,
+    priceId:tier==='lite'?c.litePriceId:c.proPriceId,
+    priceConfigured:tier==='lite'?c.litePriceConfigured:c.proPriceConfigured
+  };
 }
 
 function encodeForm(params){
@@ -56,28 +77,31 @@ async function stripePost(path,params,secret,fetchImpl=fetch){
   if(!res.ok)throw new Error('stripe_api_error_'+res.status);
   return data;
 }
-export async function createCheckoutSession({env,userId,email,customerId,fetchImpl=fetch}){
+export async function createCheckoutSession({env,userId,email,customerId,tier='pro',fetchImpl=fetch}){
   const c=billingConfig(env);
   if(!c.enabled)throw new Error('billing_disabled');
-  const missing=billingMissing(env);
+  const plan=tierBillingConfig(env,tier);
+  const missing=billingMissing(env,tier);
   if(missing.length)throw new Error('billing_not_configured:'+missing.join(','));
   const params={
     mode:'subscription',
-    'line_items[0][price]':c.priceId,
+    'line_items[0][price]':plan.priceId,
     'line_items[0][quantity]':'1',
-    success_url:c.origin+'/?billing=success',
+    success_url:c.origin+'/?billing=success&tier='+encodeURIComponent(tier),
     cancel_url:c.origin+'/?billing=cancelled',
     client_reference_id:userId,
     'metadata[data_shaper_user_id]':userId,
-    'metadata[product_key]':'data-shaper-pro',
+    'metadata[product_key]':plan.productKey,
+    'metadata[tier]':tier,
     'subscription_data[metadata][data_shaper_user_id]':userId,
-    'subscription_data[metadata][product_key]':'data-shaper-pro'
+    'subscription_data[metadata][product_key]':plan.productKey,
+    'subscription_data[metadata][tier]':tier
   };
   if(customerId)params.customer=customerId;
   else if(email)params.customer_email=email;
   const session=await stripePost('/checkout/sessions',params,c.secret,fetchImpl);
   if(!session?.url||!session?.id)throw new Error('stripe_checkout_invalid_response');
-  return {id:session.id,url:session.url};
+  return {id:session.id,url:session.url,tier};
 }
 export async function createPortalSession({env,customerId,fetchImpl=fetch}){
   const c=billingConfig(env);

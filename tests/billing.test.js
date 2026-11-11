@@ -9,6 +9,7 @@ const baseEnv={
   DATA_SHAPER_BILLING_ENABLED:'true',
   STRIPE_TEST_SECRET_KEY:'rk_test_example123',
   DATA_SHAPER_STRIPE_TEST_PRICE_ID:'price_test123',
+  DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID:'price_lite123',
   DATA_SHAPER_STRIPE_WEBHOOK_SECRET:WEBHOOK_SECRET,
   APP_ORIGIN:ORIGIN,
   DB:{prepare(){}}
@@ -28,6 +29,8 @@ describe('Data Shaper Stripe test configuration',()=>{
     expect(c.enabled).toBe(false);
     expect(c.secretConfigured).toBe(true);
     expect(c.priceConfigured).toBe(true);
+    expect(c.proPriceConfigured).toBe(true);
+    expect(c.litePriceConfigured).toBe(true);
     expect(c.webhookConfigured).toBe(true);
   });
   it('rejects live Stripe secret in the test scaffold',()=>{
@@ -64,6 +67,26 @@ describe('Stripe Checkout construction',()=>{
     expect(called.body.get('customer_email')).toBe('user@example.com');
     expect(called.body.toString()).not.toContain('google');
   });
+  it('builds Lite checkout with the Lite price and entitlement key',async()=>{
+    let called;
+    const out=await createCheckoutSession({
+      env:baseEnv,userId:USER_ID,email:'user@example.com',customerId:'',tier:'lite',
+      fetchImpl:async(url,init)=>{
+        called={url,body:new URLSearchParams(init.body)};
+        return new Response(JSON.stringify({id:'cs_test_lite',url:'https://checkout.stripe.com/c/pay/lite'}),{status:200,headers:{'content-type':'application/json'}});
+      }
+    });
+    expect(out.tier).toBe('lite');
+    expect(called.body.get('line_items[0][price]')).toBe(baseEnv.DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID);
+    expect(called.body.get('metadata[product_key]')).toBe('data-shaper-lite');
+    expect(called.body.get('subscription_data[metadata][product_key]')).toBe('data-shaper-lite');
+  });
+  it('fails closed for Lite while the Lite price is not configured',async()=>{
+    await expect(createCheckoutSession({
+      env:{...baseEnv,DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID:''},
+      userId:USER_ID,email:'user@example.com',tier:'lite'
+    })).rejects.toThrow('DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID');
+  });
   it('fails closed while billing is disabled',async()=>{
     await expect(createCheckoutSession({
       env:{...baseEnv,DATA_SHAPER_BILLING_ENABLED:'false'},
@@ -97,6 +120,14 @@ describe('Data Shaper webhook entitlement boundary',()=>{
     expect(subscriptionMatchesDataShaper(baseEnv,{
       metadata:{product_key:'data-shaper-pro'},
       items:{data:[{price:{id:'price_other'}}]}
+    })).toBe(false);
+    expect(subscriptionMatchesDataShaper(baseEnv,{
+      metadata:{product_key:'data-shaper-lite'},
+      items:{data:[{price:{id:baseEnv.DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID}}]}
+    })).toBe(true);
+    expect(subscriptionMatchesDataShaper(baseEnv,{
+      metadata:{product_key:'data-shaper-lite'},
+      items:{data:[{price:{id:baseEnv.DATA_SHAPER_STRIPE_TEST_PRICE_ID}}]}
     })).toBe(false);
   });
 });
