@@ -1,7 +1,7 @@
 import {googleConfig} from '../auth/google.js';
 import {readSession} from '../auth/session.js';
 import {getUserIdentity,getStripeCustomerLink,getUserIdByStripeCustomer,upsertStripeCustomerLink,upsertStripeEntitlement} from '../auth/store.js';
-import {billingConfig,billingMissing,createCheckoutSession,createPortalSession,verifyStripeWebhook} from './stripe.js';
+import {billingConfig,billingMissing,createCheckoutSession,createPortalSession,tierBillingConfig,verifyStripeWebhook} from './stripe.js';
 
 function json(body,status=200){
   return new Response(JSON.stringify(body),{status,headers:{
@@ -29,35 +29,44 @@ async function authenticatedUser(request,env){
   return identity?{userId:identity.user_id,email:identity.email||''}:null;
 }
 export async function handleBillingStatus(_request,env){
-  const c=billingConfig(env),missing=billingMissing(env);
+  const c=billingConfig(env),proMissing=billingMissing(env,'pro'),liteMissing=billingMissing(env,'lite');
   return json({
     provider:'stripe',
     mode:'test',
     billing_enabled:c.enabled,
     stripe_secret_configured:c.secretConfigured,
-    price_configured:c.priceConfigured,
+    price_configured:c.proPriceConfigured,
+    pro_price_configured:c.proPriceConfigured,
+    lite_price_configured:c.litePriceConfigured,
     webhook_secret_configured:c.webhookConfigured,
     identity_store_bound:!!env?.DB?.prepare,
-    ready_for_test:c.enabled&&missing.length===0,
-    missing
+    ready_for_test:c.enabled&&proMissing.length===0,
+    pro_ready_for_test:c.enabled&&proMissing.length===0,
+    lite_ready_for_test:c.enabled&&liteMissing.length===0,
+    missing:proMissing,
+    pro_missing:proMissing,
+    lite_missing:liteMissing
   });
 }
 export async function handleCheckout(request,env,deps={}){
   const c=billingConfig(env);
   if(!sameOriginMutation(request,c.origin))return json({error:'invalid_origin'},403);
   if(!c.enabled)return json({error:'billing_disabled'},503);
-  const missing=billingMissing(env);
-  if(missing.length)return json({error:'billing_not_configured',missing},503);
+  let body={};
+  try{body=await request.json()}catch{}
+  const tier=body?.tier==='lite'?'lite':'pro';
+  const missing=billingMissing(env,tier);
+  if(missing.length)return json({error:'billing_not_configured',tier,missing},503);
   const user=await authenticatedUser(request,env);
   if(!user)return json({error:'authentication_required'},401);
   const customer=await getStripeCustomerLink(env,user.userId);
   try{
     const session=await createCheckoutSession({
-      env,userId:user.userId,email:user.email,customerId:customer?.stripe_customer_id||'',
+      env,userId:user.userId,email:user.email,customerId:customer?.stripe_customer_id||'',tier,
       fetchImpl:deps.fetchImpl||fetch
     });
     return json(session);
-  }catch{return json({error:'stripe_checkout_failed'},502)}
+  }catch{return json({error:'stripe_checkout_failed',tier},502)}
 }
 export async function handlePortal(request,env,deps={}){
   const c=billingConfig(env);
@@ -71,16 +80,22 @@ export async function handlePortal(request,env,deps={}){
     return json(session);
   }catch{return json({error:'stripe_portal_failed'},502)}
 }
-export function subscriptionMatchesDataShaper(env,obj){
-  const configuredPrice=billingConfig(env).priceId;
+export function subscriptionTierDataShaper(env,obj){
   const productKey=String(obj?.metadata?.product_key||'');
   const priceIds=Array.isArray(obj?.items?.data)?obj.items.data.map(item=>item?.price?.id).filter(Boolean):[];
-  return productKey==='data-shaper-pro'&&!!configuredPrice&&priceIds.includes(configuredPrice);
+  for(const tier of ['pro','lite']){
+    const plan=tierBillingConfig(env,tier);
+    if(productKey===plan.productKey&&plan.priceConfigured&&priceIds.includes(plan.priceId))return tier;
+  }
+  return '';
+}
+export function subscriptionMatchesDataShaper(env,obj){
+  return !!subscriptionTierDataShaper(env,obj);
 }
 async function applyWebhookEvent(env,event){
   const obj=event?.data?.object||{};
   if(event?.type==='checkout.session.completed'){
-    if(String(obj.metadata?.product_key||'')!=='data-shaper-pro')return;
+    if(!['data-shaper-lite','data-shaper-pro'].includes(String(obj.metadata?.product_key||'')))return;
     const userId=String(obj.client_reference_id||obj.metadata?.data_shaper_user_id||'');
     const customerId=typeof obj.customer==='string'?obj.customer:obj.customer?.id;
     if(/^usr_[0-9a-f-]{36}$/i.test(userId)&&/^cus_[A-Za-z0-9]+$/.test(customerId||'')){
@@ -89,7 +104,9 @@ async function applyWebhookEvent(env,event){
     return;
   }
   if(['customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'].includes(event?.type)){
-    if(!subscriptionMatchesDataShaper(env,obj))return;
+    const tier=subscriptionTierDataShaper(env,obj);
+    if(!tier)return;
+    const productKey='data-shaper-'+tier;
     const customerId=typeof obj.customer==='string'?obj.customer:obj.customer?.id;
     let userId=String(obj.metadata?.data_shaper_user_id||'');
     if(!/^usr_[0-9a-f-]{36}$/i.test(userId)&&customerId){
@@ -100,7 +117,7 @@ async function applyWebhookEvent(env,event){
     const status=String(obj.status||'unknown');
     if(customerId)await upsertStripeCustomerLink(env,userId,customerId);
     if(obj.id&&customerId)await upsertStripeEntitlement(env,{
-      subscriptionId:obj.id,userId,customerId,priceId,status
+      subscriptionId:obj.id,userId,customerId,productKey,priceId,status
     });
   }
 }
