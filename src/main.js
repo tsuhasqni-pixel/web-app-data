@@ -10,6 +10,7 @@ import {toCSV} from './parser/csv.js';
 import {exportCSV,exportObjectRows,exportBalanceSheet,saveText} from './exporter/index.js';
 import {buildCleaningZip,saveBlob} from './exporter/batch.js';
 import {buildRecipe,validateRecipe} from './recipe/index.js';
+import {reportPurposes,getReportPurpose,buildSimpleReport,simpleReportToRows,reportDisclaimer} from './reporting/index.js';
 import './style.css';
 
 const app=document.querySelector('#app');
@@ -18,6 +19,7 @@ let workspaceTab='free';
 let profile='demand',orientation='auto',wideValueField='demand_qty';
 let options={trim:true,width:true,dates:true};
 let aggregateConfig={group1:'',valueField:'amount'};
+let reportConfig={purpose:'household',categoryField:'',amountField:'',flowField:''};
 let bsConfig={accountField:'account_name',amountField:'amount',debitField:'debit',creditField:'credit',overrides:{}};
 let statementTemplate=createDefaultStatementTemplate();
 let templateMappings={};
@@ -126,10 +128,10 @@ function checkbox(parent,label,checked,onChange){
 function renderTabs(){
  const nav=el('div',undefined,app,'workspace-tabs');
  [
-  ['free','無料診断'],
-  ['pro','Proクリーニング'],
-  ['aggregate','集計'],
-  ['balance','決算書レイアウト']
+  ['free','無料診断 · Free'],
+  ['aggregate','集計 · Pro'],
+  ['balance','決算・レポート · Free / Pro'],
+  ['pro','クリーニング · Pro']
  ].forEach(([id,label])=>{
    const b=button(label,()=>{workspaceTab=id;clearResult();render();},nav,'tab-button'+(workspaceTab===id?' active':''));
    b.setAttribute('aria-selected',String(workspaceTab===id));
@@ -302,7 +304,7 @@ function renderTemplateEditor(parent){
 }
 function ensureStatementConfig(){
  const available=recordFields();
- if(!available.includes(statementConfig.accountField))statementConfig.accountField=available.includes('account_name')?'account_name':available[0]||'';
+ if(!available.includes(statementConfig.accountField))statementConfig.accountField=available.includes('account_name')?'account_name':'';
  if(!available.includes(statementConfig.amountField))statementConfig.amountField=available.includes('amount')?'amount':'';
  if(!available.includes(statementConfig.debitField))statementConfig.debitField=available.includes('debit')?'debit':'';
  if(!available.includes(statementConfig.creditField))statementConfig.creditField=available.includes('credit')?'credit':'';
@@ -312,7 +314,8 @@ function renderSourceColumnConfig(parent){
  const s=section('入力試算表の列',parent);
  const available=ensureStatementConfig();
  if(!available.length)return el('p','入力列がありません。標準化設定で列をMappingしてください。',s,'warning');
- el('span','勘定科目列: ',s);select(available.map(x=>[x,x]),statementConfig.accountField,v=>{statementConfig.accountField=v;templateMappings={};render();},s);
+ el('span','勘定科目列: ',s);select([['','選択してください'],...available.map(x=>[x,x])],statementConfig.accountField,v=>{statementConfig.accountField=v;templateMappings={};render();},s);
+ if(!statementConfig.accountField)el('p','勘定科目列を明示的にMappingしてください。別の列を勘定科目として推測しません。',s,'warning');
  el('span','残高列: ',s);select([['','借方・貸方から計算'],...available.map(x=>[x,x])],statementConfig.amountField,v=>{statementConfig.amountField=v;render();},s);
  if(!statementConfig.amountField){
    el('span','借方列: ',s);select([['','なし'],...available.map(x=>[x,x])],statementConfig.debitField,v=>{statementConfig.debitField=v;render();},s);
@@ -389,17 +392,47 @@ function renderAggregate(){
    el('p','元ファイルはブラウザ内で処理し、サーバーへ保存しません。',s,'status');
  }catch(e){el('p',e.message,s,'error');}
 }
-function renderBalance(){
- const wrap=el('div',undefined,app,'workspace-panel');
- el('p','「勘定科目集計」で作ったテンプレートと対応関係を使って、試算表の数字を決算書の型へ流し込みます。',wrap,'lead');
- renderTemplateEditor(wrap);
- if(!renderUpload(wrap))return;
- renderMappingWorkspace(wrap);renderPreview(wrap);
- if(!result)return;
- renderSourceColumnConfig(wrap);
- const agg=currentStatementAggregation();if(!agg)return;
- renderAccountMapping(wrap,agg);
- const s=section('決算書プレビュー',wrap);
+function renderReportPurposeGuide(parent,purpose){
+ const s=section('使い方ガイド / サンプル',parent);
+ el('p','前年データや既存テンプレートがなくても開始できます。架空の前年値は補完せず、まず下記のような列を用意すると集計しやすくなります。',s,'status');
+ const fields=el('div',undefined,s,'guide-fields');
+ purpose.suggestedFields.forEach(x=>el('span',x,fields,'guide-chip'));
+ el('h3','入力例',s);
+ renderTable(s,purpose.sample,10);
+ button('この入力例をサンプルCSVで保存',()=>saveText('data-shaper-'+purpose.id+'-sample.csv',exportObjectRows(purpose.sample),'text/csv;charset=utf-8'),s,'secondary-button');
+ el('p','サンプル値は使い方説明用であり、利用者の実績値・税務判断・推奨値ではありません。',s,'status');
+}
+
+function ensureReportConfig(){
+ const available=recordFields();
+ const numeric=numericRecordFields();
+ const preferredCategory=['category','account_name','sku_name','location_name'].find(x=>available.includes(x));
+ if(!reportConfig.categoryField||!available.includes(reportConfig.categoryField))reportConfig.categoryField=preferredCategory||available.find(x=>!numeric.includes(x))||available[0]||'';
+ if(!reportConfig.amountField||!numeric.includes(reportConfig.amountField))reportConfig.amountField=available.includes('amount')?'amount':numeric[0]||'';
+ if(reportConfig.flowField&&!available.includes(reportConfig.flowField))reportConfig.flowField='';
+ if(!reportConfig.flowField&&available.includes('flow_type'))reportConfig.flowField='flow_type';
+ return {available,numeric};
+}
+
+function renderInlineProGate(parent){
+ const s=section('Pro：詳細レポート',parent);
+ el('span','Pro',s,'plan-badge pro');
+ if(!authState.loaded)return el('p','ログイン状態を確認しています。',s,'status');
+ if(!authState.authenticated){
+   el('p','Freeでは簡易レポートまで利用できます。詳細テンプレート、全分類出力、勘定科目対応の保存・再利用はProです。',s,'pro-note');
+   const login=el('a','Googleでログイン',s,'login-link');login.href='/api/auth/google/start';return;
+ }
+ el('p','Google本人認証は完了しています。Pro権限はData Shaper専用のStripe entitlementでのみ開放します。',s,'pro-note');
+ if(billingState.ready){
+   el('p','現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
+   button('TEST Proを開始（月額 ¥980）',startTestCheckout,s);
+ }
+}
+
+function renderStatementPreview(parent,agg,purpose){
+ const s=section('Pro：'+purpose.proLabel,parent);
+ el('span','Pro',s,'plan-badge pro');
+ el('p','公式申告書そのものではなく、勘定科目の対応・集約・貸借確認を行う入力準備資料です。',s,'status');
  for(const [sectionId,label] of templateSections){
    const card=el('div',undefined,s,'statement-card');el('h4',label,card);
    agg.rows.filter(x=>x.section===sectionId).forEach(x=>{
@@ -413,14 +446,80 @@ function renderBalance(){
    :'要確認：貸借差額 '+agg.totals.difference.toLocaleString()+' / 未対応科目 '+agg.unresolved.length;
  el('p','資産 '+agg.totals.assets.toLocaleString()+' / 負債 '+agg.totals.liabilities.toLocaleString()+' / 純資産 '+agg.totals.equity.toLocaleString(),s,'status');
  el('p',status,s,agg.totals.isBalanced?'status':'warning');
- button('決算集計結果をCSVですぐ返す',()=>saveText('data-shaper-statement-result.csv',toCSV(aggregationToRows(agg)),'text/csv;charset=utf-8'),s);
- el('p','新しい勘定科目はテンプレートへ追加できます。会社固有の科目は入力科目から任意のテンプレート科目へ手動対応できます。',s,'status');
+ button('決算・申告準備CSVを返す',()=>saveText('data-shaper-'+purpose.id+'-statement-prep.csv',toCSV(aggregationToRows(agg)),'text/csv;charset=utf-8'),s);
+ el('p',reportDisclaimer,s,'legal-note');
+}
+
+function renderBalance(){
+ const wrap=el('div',undefined,app,'workspace-panel');
+ el('p','法人・個人事業・家計を同じ入口から整理します。Freeは簡易レポート、Proは詳細な決算・申告準備や再利用まで扱います。',wrap,'lead');
+ const purposeSection=section('レポートの目的',wrap);
+ el('span','Free / Pro',purposeSection,'plan-badge mixed');
+ select(reportPurposes.map(x=>[x.id,x.label]),reportConfig.purpose,v=>{reportConfig.purpose=v;reportConfig.categoryField='';reportConfig.amountField='';reportConfig.flowField='';render();},purposeSection);
+ const purpose=getReportPurpose(reportConfig.purpose);
+ el('p',purpose.description,purposeSection,'status');
+ renderReportPurposeGuide(wrap,purpose);
+ el('p',reportDisclaimer,wrap,'legal-note');
+
+ if(!renderUpload(wrap))return;
+ renderMappingWorkspace(wrap);renderPreview(wrap);
+ const s=section('Free：'+purpose.freeLabel,wrap);
+ el('span','Free',s,'plan-badge free');
+ if(!result)return el('p','列のMappingを確認して「変換プレビューを実行」してください。',s,'status');
+ const {available,numeric}=ensureReportConfig();
+ if(!available.length||!numeric.length)return el('p','分類項目と数値項目を確認してください。',s,'warning');
+ el('span','分類に使う項目: ',s);
+ select(available.map(x=>[x,x]),reportConfig.categoryField,v=>{reportConfig.categoryField=v;render();},s);
+ el('span','金額項目: ',s);
+ select(numeric.map(x=>[x,x]),reportConfig.amountField,v=>{reportConfig.amountField=v;render();},s);
+ el('span','収支区分（任意）: ',s);
+ select([['','使わない'],...available.map(x=>[x,x])],reportConfig.flowField,v=>{reportConfig.flowField=v;render();},s);
+ try{
+   const simple=buildSimpleReport(result.records,reportConfig);
+   const metrics=el('div',undefined,s,'metric-grid');
+   [['有効行',simple.validRows],['金額合計',simple.total.toLocaleString()]].forEach(([k,v])=>{const card=el('div',undefined,metrics,'metric-card');el('strong',String(v),card);el('span',k,card);});
+   if(simple.cashflow?.available){
+     [['収入',simple.cashflow.income],['支出',simple.cashflow.expense],['収支差額',simple.cashflow.net]].forEach(([k,v])=>{const card=el('div',undefined,metrics,'metric-card');el('strong',Number(v).toLocaleString(),card);el('span',k,card);});
+     if(simple.cashflow.unknownFlowRows)el('p','収支区分を判定できない行が '+simple.cashflow.unknownFlowRows+' 件あります。勝手に収入・支出へ分類しません。',s,'warning');
+   }else if(reportConfig.flowField){
+     el('p','収支区分列を選択しましたが「収入 / 支出」等を判定できませんでした。金額合計と分類別集計のみ表示します。',s,'warning');
+   }
+   el('h3','分類別 上位5項目',s);
+   renderTable(s,simple.categories.slice(0,5).map(x=>({分類:x.category,金額:x.amount})),5);
+   const freeReport={...simple,categories:simple.categories.slice(0,5)};
+   button('Free簡易レポートCSVを返す',()=>saveText('data-shaper-'+purpose.id+'-free-report.csv',toCSV(simpleReportToRows(freeReport,purpose.id)),'text/csv;charset=utf-8'),s);
+   el('p','Freeでは上位5分類までを簡易出力します。元ファイルはブラウザ内で処理し、Workerへ保存しません。',s,'status');
+
+   if(!proAuthorized()){renderInlineProGate(wrap);return;}
+
+   const detail=section('Pro：詳細内訳',wrap);
+   el('span','Pro',detail,'plan-badge pro');
+   renderTable(detail,simple.categories.map(x=>({分類:x.category,金額:x.amount})),200);
+   button('全分類の詳細レポートCSVを返す',()=>saveText('data-shaper-'+purpose.id+'-pro-report.csv',toCSV(simpleReportToRows(simple,purpose.id)),'text/csv;charset=utf-8'),detail);
+   el('p','前年データがない場合、比較率や前年比を推測して作りません。前年ファイルを追加できた場合だけ比較指標を計算する方針です。',detail,'status');
+
+   if(['corporate','sole_blue'].includes(purpose.id)){
+     renderTemplateEditor(wrap);
+     renderSourceColumnConfig(wrap);
+     const agg=currentStatementAggregation();
+     if(agg){
+       renderAccountMapping(wrap,agg);
+       renderStatementPreview(wrap,agg,purpose);
+     }
+   }else if(purpose.id==='sole_white'){
+     const note=section('Pro：白色申告向け整理',wrap);
+     el('p','収入・費目別の詳細集計を入力準備資料として出します。税務上の必要経費該当性や申告書の完成判断は行いません。',note,'status');
+   }else if(purpose.id==='household'){
+     const note=section('Pro：家計の詳細利用',wrap);
+     el('p','提出書類ではなく、家計管理・相談用の詳細内訳として利用します。過去データが追加された場合だけ期間比較を行う設計にします。',note,'status');
+   }
+ }catch(e){el('p',e.message,s,'error');}
 }
 function renderRecipe(){
  if(!sheets.length||workspaceTab==='free')return;
  const s=section('Recipe / 再利用');
  button('現在の設定をRecipe保存',()=>{
-   const out=buildRecipe({sheets,analysis,options,profile,orientation,wideValueField,aggregateConfig,bsConfig,batchOptions,statementTemplate,templateMappings,statementConfig});
+   const out=buildRecipe({sheets,analysis,options,profile,orientation,wideValueField,aggregateConfig,reportConfig,bsConfig,batchOptions,statementTemplate,templateMappings,statementConfig});
    saveText('data-shaper-recipe.json',JSON.stringify(out,null,2),'application/json');
  },s);
  const input=el('input',undefined,s);input.type='file';input.accept='.json';input.setAttribute('aria-label','Recipe JSONを読み込む');
@@ -438,6 +537,7 @@ function renderRecipe(){
      orientation=['auto','long','wide'].includes(recipe.orientation)?recipe.orientation:orientation;
      wideValueField=recipe.wideValueField||wideValueField;
      aggregateConfig={...aggregateConfig,...(recipe.aggregateConfig||{})};
+     reportConfig={...reportConfig,...(recipe.reportConfig||{})};
      bsConfig={...bsConfig,...(recipe.bsConfig||{}),overrides:{...(recipe.bsConfig?.overrides||recipe.bsConfig?.assignments||{})}};
      batchOptions={...batchOptions,...(recipe.batchOptions||{})};
      if(Array.isArray(recipe.statementTemplate)&&recipe.statementTemplate.length)statementTemplate=recipe.statementTemplate.map(x=>({...x,aliases:[...(x.aliases||[])]}));
@@ -449,11 +549,11 @@ function renderRecipe(){
 }
 
 function render(){
- app.replaceChildren();el('h1','Data Shaper',app);el('p','無料診断からPro一括クリーニング、集計、決算書レイアウトまでをLocal Firstで処理します。',app,'subtitle');renderAuthBar();renderTabs();
+ app.replaceChildren();el('h1','Data Shaper',app);el('p','無料診断、集計、決算・レポート、ProクリーニングまでをLocal Firstで処理します。',app,'subtitle');renderAuthBar();renderTabs();
  if(workspaceTab==='free')renderFree();
  if(workspaceTab==='pro')(proAuthorized()?renderPro():renderProLocked());
  if(workspaceTab==='aggregate')(proAuthorized()?renderAggregate():renderProLocked());
- if(workspaceTab==='balance')(proAuthorized()?renderBalance():renderProLocked());
+ if(workspaceTab==='balance')renderBalance();
  if(proAuthorized())renderRecipe();
  const footer=el('footer',undefined,app,'app-footer');
  const privacy=el('a','プライバシー',footer);privacy.href='/legal/privacy/';
