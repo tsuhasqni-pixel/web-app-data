@@ -30,9 +30,11 @@ async function authenticatedUser(request,env){
 }
 export async function handleBillingStatus(_request,env){
   const c=billingConfig(env),proMissing=billingMissing(env,'pro'),liteMissing=billingMissing(env,'lite');
+  const taxDisplayConfirmed=env.DATA_SHAPER_TAX_DISPLAY_CONFIRMED==='true';
   return json({
     provider:'stripe',
     mode:'test',
+    tax_display_confirmed:taxDisplayConfirmed,
     billing_enabled:c.enabled,
     stripe_secret_configured:c.secretConfigured,
     price_configured:c.proPriceConfigured,
@@ -43,6 +45,7 @@ export async function handleBillingStatus(_request,env){
     ready_for_test:c.enabled&&proMissing.length===0,
     pro_ready_for_test:c.enabled&&proMissing.length===0,
     lite_ready_for_test:c.enabled&&liteMissing.length===0,
+    sale_gate_ready:c.enabled&&proMissing.length===0&&liteMissing.length===0&&taxDisplayConfirmed,
     missing:proMissing,
     pro_missing:proMissing,
     lite_missing:liteMissing

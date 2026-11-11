@@ -121,8 +121,8 @@ function renderPlanOverview(){
  const grid=el('div',undefined,s,'plan-grid');
  const plans=[
    {name:'Free',price:'¥0',className:'free',copy:'軽量集計、無料診断、簡易レポート。集計は縦軸×横軸の交差集計と数値合計まで無料。'},
-   {name:'Lite',price:'月額 ¥480（支払総額）',className:'lite',copy:'データ整形、全分類の汎用レポート、Recipe再利用。'},
-   {name:'Pro',price:'月額 ¥980（支払総額）',className:'pro',copy:'Liteの全機能＋法人・個人事業の決算/申告準備、勘定科目テンプレート、貸借一致確認。'}
+   {name:'Lite',price:'月額 ¥480',className:'lite',copy:'データ整形、全分類の汎用レポート、Recipe再利用。'},
+   {name:'Pro',price:'月額 ¥980',className:'pro',copy:'Liteの全機能＋法人・個人事業の決算/申告準備、勘定科目テンプレート、貸借一致確認。'}
  ];
  plans.forEach(plan=>{
    const card=el('div',undefined,grid,'plan-card '+plan.className);
@@ -130,7 +130,7 @@ function renderPlanOverview(){
    el('span',plan.price,card,'plan-price');
    el('p',plan.copy,card);
  });
- el('p','販売価格は Free ¥0 / Lite 月額¥480 / Pro 月額¥980 で固定します。Stripe TESTでは接続済みのTierだけ購入ボタンを有効化します。',s,'status');
+ el('p','価格本体は Free ¥0 / Lite 月額¥480 / Pro 月額¥980 で固定します。税の扱いと最終支払額表示は販売開始前に事業者判断で確定し、Stripe TESTでは接続済みのTierだけ購入ボタンを有効化します。',s,'status');
 }
 function renderProLocked(){
  const wrap=el('div',undefined,app,'workspace-panel');
