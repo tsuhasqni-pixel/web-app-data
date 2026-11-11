@@ -29,7 +29,7 @@ async function runAggregate(page,filePath){
   await selects.nth(1).selectOption('location_name');
   await selects.nth(2).selectOption('amount');
 
-  await expect(setting.getByText(/sku_name × location_name/)).toBeVisible();
+  await expect(setting.getByRole('columnheader',{name:'sku_name × location_name'})).toBeVisible();
   const table=setting.locator('table').last();
   await expect(table).toContainText('商品A');
   await expect(table).toContainText('750');
@@ -63,7 +63,7 @@ test('CSV: vertical × horizontal aggregation exports only calculated table as C
 test('XLSX: vertical × horizontal aggregation returns an XLSX with the aggregation table',async({page})=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'ds-xlsx-'));
   const input=path.join(dir,'在庫売上.xlsx');
-  await writeXlsxFile(rows,{filePath:input,sheet:'入力'});
+  await writeXlsxFile(rows,{sheet:'入力'}).toFile(input);
 
   const extract=await runAggregate(page,input);
   const [download]=await Promise.all([
