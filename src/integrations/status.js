@@ -36,9 +36,11 @@ export function integrationStatus(env={}){
   const billingEnabled=clean(env.DATA_SHAPER_BILLING_ENABLED)==='true';
   const stripeKey=clean(env.STRIPE_TEST_SECRET_KEY||env.STRIPE_SECRET_KEY);
   const stripePrice=clean(env.DATA_SHAPER_STRIPE_TEST_PRICE_ID);
+  const stripeLitePrice=clean(env.DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID);
   const stripeWebhook=clean(env.DATA_SHAPER_STRIPE_WEBHOOK_SECRET);
   const stripeConfigured=secretConfigured(stripeKey,'sk_test_')||secretConfigured(stripeKey,'rk_test_');
   const priceConfigured=/^price_[A-Za-z0-9]+$/.test(stripePrice);
+  const litePriceConfigured=/^price_[A-Za-z0-9]+$/.test(stripeLitePrice);
   const webhookConfigured=secretConfigured(stripeWebhook,'whsec_');
   const disclosure=httpsUrl(env.LEGAL_DISCLOSURE_URL);
   const domain=domainStatus(env);
@@ -65,7 +67,11 @@ export function integrationStatus(env={}){
       enabled:billingEnabled,
       secret_configured:stripeConfigured,
       price_configured:priceConfigured,
+      pro_price_configured:priceConfigured,
+      lite_price_configured:litePriceConfigured,
       webhook_configured:webhookConfigured,
+      pro_ready:billingEnabled&&stripeConfigured&&priceConfigured&&webhookConfigured,
+      lite_ready:billingEnabled&&stripeConfigured&&litePriceConfigured&&webhookConfigured,
       ready:billingEnabled&&stripeConfigured&&priceConfigured&&webhookConfigured
     },
     legal:{disclosure_configured:!!disclosure},
