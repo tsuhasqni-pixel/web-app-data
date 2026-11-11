@@ -89,15 +89,21 @@ test('PDF renderer creates a printable Japanese report page',async({page,context
     window.print=()=>{document.documentElement.dataset.printCalled='yes';};
   });
   await page.goto('/');
-  const popupPromise=context.waitForEvent('page');
   await page.evaluate(async()=>{
     const {openPrintReport}=await import('/src/exporter/report.js');
-    openPrintReport({
+    window.__openDsPdf=()=>openPrintReport({
       title:'Data Shaper 集計レポート',
       rows:[['分類','金額'],['商品A',750],['商品B',300],['合計',1050]],
       note:'ブラウザ内で生成したPDF保存用レポート'
     });
+    const b=document.createElement('button');
+    b.id='e2e-open-pdf';
+    b.textContent='PDF E2E';
+    b.addEventListener('click',()=>window.__openDsPdf());
+    document.body.appendChild(b);
   });
+  const popupPromise=context.waitForEvent('page');
+  await page.locator('#e2e-open-pdf').click();
   const popup=await popupPromise;
   await popup.waitForLoadState('domcontentloaded');
   await expect(popup).toHaveTitle('Data Shaper 集計レポート');
