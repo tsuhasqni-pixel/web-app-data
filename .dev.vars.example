@@ -28,3 +28,6 @@ DATA_SHAPER_BILLING_ENABLED=false
 
 # Public, non-secret common operator-disclosure destination.
 LEGAL_DISCLOSURE_URL=https://namidata-lab-public.lingering-salad-74bc.workers.dev/legal/disclosure-request
+
+# Set true only after the business owner confirms tax treatment and customer-facing total-price display.
+DATA_SHAPER_TAX_DISPLAY_CONFIRMED=false
