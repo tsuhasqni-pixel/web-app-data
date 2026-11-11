@@ -3,7 +3,7 @@ import {parseCSV,toCSV} from '../src/parser/csv.js';
 import {detect} from '../src/detector/index.js';
 import {buildRecipe,validateRecipe,sourceSignature} from '../src/recipe/index.js';
 import {transform} from '../src/transform/index.js';
-import {aggregateRecords,buildBalanceSheet} from '../src/aggregate/index.js';
+import {aggregateRecords,buildBalanceSheet,buildProgrammedBalanceSheet,classifyBalanceAccount} from '../src/aggregate/index.js';
 import {diagnoseCleaning,cleanRawTable} from '../src/cleaner/index.js';
 import {cleanWorkbook,BATCH_LIMITS} from '../src/batch/index.js';
 import {validate} from '../src/validator/index.js';
@@ -52,6 +52,55 @@ describe('local-first data workflow',()=>{
    const agg=aggregateRecords(rows,{groupBy:['account_name'],valueField:'amount',method:'sum'});
    expect(agg.find(x=>x.account_name==='Cash').sum_amount).toBe(150);
    expect(rows).toHaveLength(3);
+ });
+ it('aggregates by user-selected primary and secondary axes',()=>{
+   const rows=[
+     {sku_name:'A',location_name:'Tokyo',demand_qty:3},
+     {sku_name:'A',location_name:'Tokyo',demand_qty:4},
+     {sku_name:'A',location_name:'Osaka',demand_qty:5}
+   ];
+   const agg=aggregateRecords(rows,{groupBy:['sku_name','location_name'],valueField:'demand_qty',method:'sum'});
+   expect(agg.find(x=>x.location_name==='Tokyo').sum_demand_qty).toBe(7);
+   expect(agg.find(x=>x.location_name==='Osaka').sum_demand_qty).toBe(5);
+ });
+ it('classifies common Japanese balance-sheet accounts with deterministic rules',()=>{
+   expect(classifyBalanceAccount('現金預金').sectionId).toBe('current_assets');
+   expect(classifyBalanceAccount('長期借入金').sectionId).toBe('noncurrent_liabilities');
+   expect(classifyBalanceAccount('資本金').sectionId).toBe('equity');
+   expect(classifyBalanceAccount('売上高').sectionId).toBe('');
+ });
+ it('builds and reconciles a programmed balance sheet from amount balances',()=>{
+   const rows=[
+     {account_name:'現金預金',amount:120},
+     {account_name:'建物',amount:80},
+     {account_name:'買掛金',amount:50},
+     {account_name:'長期借入金',amount:50},
+     {account_name:'資本金',amount:100}
+   ];
+   const sheet=buildProgrammedBalanceSheet(rows);
+   expect(sheet.totals).toMatchObject({assets:200,liabilities:100,equity:100,difference:0,isBalanced:true});
+   expect(sheet.unclassified).toHaveLength(0);
+ });
+ it('derives natural balances from debit and credit columns after classification',()=>{
+   const rows=[
+     {account_name:'現金',debit:150,credit:30},
+     {account_name:'買掛金',debit:20,credit:70},
+     {account_name:'資本金',debit:0,credit:70}
+   ];
+   const sheet=buildProgrammedBalanceSheet(rows,{amountField:'',debitField:'debit',creditField:'credit'});
+   expect(sheet.totals).toMatchObject({assets:120,liabilities:50,equity:70,difference:0,isBalanced:true});
+ });
+ it('does not report balanced when any trial-balance account remains unclassified',()=>{
+   const rows=[
+     {account_name:'現金',amount:100},
+     {account_name:'買掛金',amount:50},
+     {account_name:'資本金',amount:50},
+     {account_name:'売上高',amount:0}
+   ];
+   const sheet=buildProgrammedBalanceSheet(rows);
+   expect(sheet.totals.difference).toBe(0);
+   expect(sheet.totals.isBalanced).toBe(false);
+   expect(sheet.unclassified.map(x=>x.account)).toContain('売上高');
  });
  it('builds a balance-sheet preview only from explicit assignments',()=>{
    const rows=[{account_name:'Cash',amount:100},{account_name:'Debt',amount:60},{account_name:'Capital',amount:40},{account_name:'Unknown',amount:5}];

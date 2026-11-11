@@ -16,16 +16,18 @@ export function exportObjectRows(rows){
  return toCSV([keys,...rows.map(r=>keys.map(k=>r[k]??''))]);
 }
 export function exportBalanceSheet(sheet){
- const rows=[['section','account','amount']];
+ const rows=[['section','account','amount','classification_source']];
  for(const section of Object.values(sheet.sections)){
-   for(const item of section.items)rows.push([section.label,item.account,item.amount]);
-   rows.push([section.label+' 合計','',section.total]);
+   for(const item of section.items)rows.push([section.label,item.account,item.amount,item.classification_source||'']);
+   rows.push([section.label+' 合計','',section.total,'']);
  }
- for(const item of sheet.unclassified)rows.push(['未分類',item.account,item.amount]);
- rows.push(['資産合計','',sheet.totals.assets]);
- rows.push(['負債合計','',sheet.totals.liabilities]);
- rows.push(['純資産合計','',sheet.totals.equity]);
- rows.push(['貸借差額','',sheet.totals.difference]);
+ for(const item of sheet.unclassified)rows.push(['未分類',item.account,item.amount,item.classification_source||'unclassified']);
+ rows.push(['資産合計','',sheet.totals.assets,'']);
+ rows.push(['負債合計','',sheet.totals.liabilities,'']);
+ rows.push(['純資産合計','',sheet.totals.equity,'']);
+ rows.push(['貸借差額','',sheet.totals.difference,'']);
+ rows.push(['貸借一致','',sheet.totals.isBalanced?'一致':'不一致','']);
+ rows.push(['ルールバージョン','',sheet.rule_version??'','']);
  return toCSV(rows);
 }
 export function saveText(filename,text,mime='text/plain'){
