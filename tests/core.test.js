@@ -4,6 +4,7 @@ import {detect} from '../src/detector/index.js';
 import {buildRecipe,validateRecipe,sourceSignature} from '../src/recipe/index.js';
 import {transform} from '../src/transform/index.js';
 import {aggregateRecords,buildBalanceSheet,buildProgrammedBalanceSheet,classifyBalanceAccount} from '../src/aggregate/index.js';
+import {createDefaultStatementTemplate,mapTrialBalanceToTemplate,parseStatementTemplateRows} from '../src/accounting/template.js';
 import {diagnoseCleaning,cleanRawTable} from '../src/cleaner/index.js';
 import {cleanWorkbook,BATCH_LIMITS} from '../src/batch/index.js';
 import {validate} from '../src/validator/index.js';
@@ -101,6 +102,41 @@ describe('local-first data workflow',()=>{
    expect(sheet.totals.difference).toBe(0);
    expect(sheet.totals.isBalanced).toBe(false);
    expect(sheet.unclassified.map(x=>x.account)).toContain('売上高');
+ });
+ it('maps multiple source trial-balance accounts into one statement-template line',()=>{
+   const template=createDefaultStatementTemplate();
+   const rows=[
+     {account_name:'現金',amount:100},
+     {account_name:'普通預金',amount:200},
+     {account_name:'買掛金',amount:150},
+     {account_name:'資本金',amount:150}
+   ];
+   const out=mapTrialBalanceToTemplate(rows,template);
+   const cash=out.rows.find(x=>x.id==='cash_and_deposits');
+   expect(cash.amount).toBe(300);
+   expect(cash.source_accounts).toEqual(expect.arrayContaining(['現金','普通預金']));
+   expect(out.unresolved).toHaveLength(0);
+   expect(out.totals).toMatchObject({assets:300,liabilities:150,equity:150,difference:0,isBalanced:true});
+ });
+ it('keeps unknown input accounts unresolved until the user maps them',()=>{
+   const template=createDefaultStatementTemplate();
+   const rows=[{account_name:'会社独自科目',amount:40}];
+   const first=mapTrialBalanceToTemplate(rows,template);
+   expect(first.unresolved.map(x=>x.account)).toContain('会社独自科目');
+   expect(first.totals.isBalanced).toBe(false);
+   const second=mapTrialBalanceToTemplate(rows,template,{manualMappings:{'会社独自科目':'other_current_assets'}});
+   expect(second.unresolved).toHaveLength(0);
+   expect(second.rows.find(x=>x.id==='other_current_assets').amount).toBe(40);
+ });
+ it('parses an editable statement template from CSV-like rows',()=>{
+   const tpl=parseStatementTemplateRows([
+     ['order','section','account','aliases','normal_balance'],
+     [1,'流動資産','現金等','現金|普通預金','debit'],
+     [2,'流動負債','仕入債務','買掛金|支払手形','credit']
+   ]);
+   expect(tpl).toHaveLength(2);
+   expect(tpl[0]).toMatchObject({label:'現金等',section:'current_assets',normal_balance:'debit'});
+   expect(tpl[0].aliases).toContain('普通預金');
  });
  it('builds a balance-sheet preview only from explicit assignments',()=>{
    const rows=[{account_name:'Cash',amount:100},{account_name:'Debt',amount:60},{account_name:'Capital',amount:40},{account_name:'Unknown',amount:5}];

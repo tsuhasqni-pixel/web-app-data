@@ -24,3 +24,23 @@ See development branch for the initial implementation.
 - If only debit/credit columns exist, natural-side balances are derived after section classification.
 - Balance reconciliation reports whether assets equal liabilities plus equity. Any unclassified account prevents a PASS.
 - Uploaded source files remain Local First and are not stored by the Worker.
+
+
+## Template-first accounting aggregation
+The accounting workflow is template-first, not a generic statistical GROUP BY workflow.
+
+1. Prepare or import a statement template containing the target account rows.
+2. Upload a trial balance and map its account / amount (or debit / credit) columns.
+3. Match each source account to a template account. Multiple source accounts may roll up into one template row.
+4. Keep unknown accounts unresolved until a human maps them; never silently discard them.
+5. Calculate the statement template and verify Assets = Liabilities + Equity.
+6. Return the calculated CSV immediately; the source file remains Local First.
+
+Template columns:
+- `order`
+- `section` (current_assets / noncurrent_assets / current_liabilities / noncurrent_liabilities / equity)
+- `account`
+- `aliases` (pipe-separated)
+- `normal_balance` (debit / credit)
+
+The starter template is only a practical Japan-GAAP balance-sheet starter. It is not claimed to be a complete EDINET taxonomy. EDINET/XBRL extraction and PDF/OCR ingestion can populate the same template model in later stages.
