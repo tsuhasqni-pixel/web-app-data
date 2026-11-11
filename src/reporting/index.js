@@ -9,7 +9,7 @@ export const reportPurposes=[
   {
     id:'corporate',
     label:'法人',
-    freeLabel:'簡易決算サマリー',
+    freeLabel:'簡易参考サマリー',
     proLabel:'法人決算・申告準備レポート',
     description:'社内確認や法人税申告準備のために、勘定科目・残高・貸借一致を整理します。公式申告書そのものを自動作成する機能ではありません。',
     suggestedFields:['勘定科目','金額または残高','借方','貸方','日付または期間'],
@@ -22,7 +22,7 @@ export const reportPurposes=[
   {
     id:'sole_blue',
     label:'個人事業主（青色）',
-    freeLabel:'簡易事業収支サマリー',
+    freeLabel:'簡易事業サマリー',
     proLabel:'青色申告決算書 入力準備レポート',
     description:'売上・経費・資産負債を整理し、本人または専門家が公式様式へ確認・転記しやすくする準備資料です。',
     suggestedFields:['日付','摘要','勘定科目または費目','金額','収支区分'],
@@ -35,7 +35,7 @@ export const reportPurposes=[
   {
     id:'sole_white',
     label:'個人事業主（白色）',
-    freeLabel:'簡易収支サマリー',
+    freeLabel:'簡易事業サマリー',
     proLabel:'収支内訳書 入力準備レポート',
     description:'収入・必要経費の集計を整理する準備資料です。税務上の適否を自動判断せず、最終確認は利用者側で行います。',
     suggestedFields:['日付','摘要','費目','金額','収支区分'],
