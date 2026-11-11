@@ -69,10 +69,18 @@ The starter template is only a practical Japan-GAAP balance-sheet starter. It is
 ## Sale gate
 Public paid sale remains blocked until all of the following pass:
 - Lite and Pro Stripe TEST Checkout both create the correct subscription tier.
+- Business owner confirms tax treatment and customer-facing total-price wording (`DATA_SHAPER_TAX_DISPLAY_CONFIRMED=true`).
 - Webhook entitlement resolves Free / Lite / Pro correctly; Pro inherits Lite access but Lite never receives Pro accounting access.
 - CSV / TSV / XLSX matching-format aggregation extraction passes with real files.
 - CSV and PDF report export passes for Free/Lite/Pro report paths.
 - Google OAuth remains identity-only; email strings never grant paid access.
 - No live-mode Stripe mutation occurs before the TEST gate passes.
 
-Launch prices are fixed at **Free ¥0 / Lite ¥480 per month / Pro ¥980 per month**. Consumer-facing UI displays the payment total rather than a tax-exclusive teaser price.
+Launch prices are fixed at **Free ¥0 / Lite ¥480 per month / Pro ¥980 per month**. The nominal launch prices are fixed. Customer-facing tax treatment / total-price wording remains gated until the business owner confirms the tax setup.
+
+### Automated browser sale-gate status (2026-11-11)
+- Real CSV pivot upload → aggregation → CSV download/content verification: PASS
+- Real XLSX pivot upload → aggregation → XLSX download/cell verification: PASS
+- Japanese PDF print/save report renderer: PASS
+- PDF popup handling bug found by E2E and fixed before merge
+- These Playwright checks now run in normal GitHub CI before build/deploy dry-run.
