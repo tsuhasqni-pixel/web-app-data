@@ -82,3 +82,27 @@ test('XLSX: vertical × horizontal aggregation returns an XLSX with the aggregat
     ['合計',650,400,1050]
   ]);
 });
+
+
+test('PDF renderer creates a printable Japanese report page',async({page,context})=>{
+  await context.addInitScript(()=>{
+    window.print=()=>{document.documentElement.dataset.printCalled='yes';};
+  });
+  await page.goto('/');
+  const popupPromise=context.waitForEvent('page');
+  await page.evaluate(async()=>{
+    const {openPrintReport}=await import('/src/exporter/report.js');
+    openPrintReport({
+      title:'Data Shaper 集計レポート',
+      rows:[['分類','金額'],['商品A',750],['商品B',300],['合計',1050]],
+      note:'ブラウザ内で生成したPDF保存用レポート'
+    });
+  });
+  const popup=await popupPromise;
+  await popup.waitForLoadState('domcontentloaded');
+  await expect(popup).toHaveTitle('Data Shaper 集計レポート');
+  await expect(popup.locator('body')).toContainText('商品A');
+  await expect(popup.locator('body')).toContainText('1050');
+  await expect(popup.locator('body')).toContainText('ブラウザ内で生成したPDF保存用レポート');
+  await expect.poll(()=>popup.evaluate(()=>document.documentElement.dataset.printCalled||'')).toBe('yes');
+});
