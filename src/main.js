@@ -224,7 +224,7 @@ function renderPreview(parent){
 }
 function renderPro(){
  const wrap=el('div',undefined,app,'workspace-panel');
- el('p','Proは複数シートの実クリーニングと、選択シートの標準形式変換を行う作業領域です。現在は課金接続前の開発プレビューです。',wrap,'lead');
+ el('p','Proは複数シートの実クリーニングと、選択シートの標準形式変換を行う契約者向け作業領域です。処理はLocal Firstで行います。',wrap,'lead');
  if(!renderUpload(wrap))return;
  renderBatchPro(wrap);
  renderMappingWorkspace(wrap);renderPreview(wrap);
@@ -329,7 +329,7 @@ function renderRecipe(){
      orientation=['auto','long','wide'].includes(recipe.orientation)?recipe.orientation:orientation;
      wideValueField=recipe.wideValueField||wideValueField;
      aggregateConfig={...aggregateConfig,...(recipe.aggregateConfig||{})};
-     bsConfig={...bsConfig,...(recipe.bsConfig||{}),assignments:{...(recipe.bsConfig?.assignments||{})}};
+     bsConfig={...bsConfig,...(recipe.bsConfig||{}),overrides:{...(recipe.bsConfig?.overrides||recipe.bsConfig?.assignments||{})}};
      batchOptions={...batchOptions,...(recipe.batchOptions||{})};
      clearResult();render();
    }catch(e){alert('Recipe適用不可: '+e.message);}
