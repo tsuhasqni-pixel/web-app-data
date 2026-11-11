@@ -14,6 +14,14 @@ export function parseCSV(text, delimiter) {
   if(field!==''||row.length){row.push(field);rows.push(row);}
   return rows;
 }
+export function toDelimited(rows,delimiter=','){
+  const sep=String(delimiter||',');
+  return rows.map(r=>r.map(v=>{
+    const s=String(v??'');
+    const needsQuote=s.includes('"')||s.includes('\r')||s.includes('\n')||s.includes(sep);
+    return needsQuote?'"'+s.replace(/"/g,'""')+'"':s;
+  }).join(sep)).join('\r\n')+'\r\n';
+}
 export function toCSV(rows){
-  return rows.map(r=>r.map(v=>{const s=String(v??'');return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',')).join('\r\n')+'\r\n';
+  return toDelimited(rows,',');
 }
