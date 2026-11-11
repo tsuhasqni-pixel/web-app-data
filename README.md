@@ -16,15 +16,16 @@ Inspect → Detect → Map → Confirm → Transform → Validate.
 See development branch for the initial implementation.
 
 
-## Pro aggregation and trial-balance workflow
-- Aggregation lets the user choose primary/secondary axes, numeric target, and aggregation method.
-- The result can be returned immediately as a CSV after calculation.
-- Trial-balance layout uses deterministic programmed account-name rules for current assets, non-current assets, current liabilities, non-current liabilities, and equity.
-- Unclassified or ambiguous accounts are never silently assigned; the user can override them.
-- If only debit/credit columns exist, natural-side balances are derived after section classification.
-- Balance reconciliation reports whether assets equal liabilities plus equity. Any unclassified account prevents a PASS.
-- Uploaded source files remain Local First and are not stored by the Worker.
-
+## Product lanes and plan tiers
+- **Free diagnosis**: local-first diagnostics and safe cleaning preview.
+- **Aggregation (Pro)**: choose one grouping field and one numeric field; Data Shaper sums the numeric field by the selected grouping field.
+- **Decision & reports (Free / Pro)**:
+  - Free: purpose selection, guided sample rows, suggested input fields, top-five category summary, and a simple CSV report.
+  - Pro: full category detail, reusable settings, and accounting-template workflows where applicable.
+  - Supported purposes: corporate, sole proprietor (blue return preparation), sole proprietor (white return preparation), household/personal management, and custom.
+  - Report samples are explanatory only. Missing prior-year values are never fabricated.
+  - Outputs are accounting/data-preparation materials, not tax representation or automated tax-law judgments.
+- **Cleaning (Pro)**: batch cleaning and canonical output workflows.
 
 ## Template-first accounting aggregation
 The accounting workflow is template-first, not a generic statistical GROUP BY workflow.
