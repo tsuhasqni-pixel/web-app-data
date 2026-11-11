@@ -23,6 +23,7 @@ DATA_SHAPER_BILLING_ENABLED=false
 # Stripe TEST only. Never reuse DemandScope/NamiData Product/Price IDs.
 # STRIPE_TEST_SECRET_KEY=rk_test_REPLACE_ME
 # DATA_SHAPER_STRIPE_TEST_PRICE_ID=price_REPLACE_ME
+# DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID=price_REPLACE_ME
 # DATA_SHAPER_STRIPE_WEBHOOK_SECRET=whsec_REPLACE_ME
 
 # Public, non-secret common operator-disclosure destination.
