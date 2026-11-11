@@ -1,9 +1,9 @@
 import {describe,it,expect} from 'vitest';
-import {parseCSV,toCSV} from '../src/parser/csv.js';
+import {parseCSV,toCSV,toDelimited} from '../src/parser/csv.js';
 import {detect} from '../src/detector/index.js';
 import {buildRecipe,validateRecipe,sourceSignature} from '../src/recipe/index.js';
 import {transform} from '../src/transform/index.js';
-import {aggregateRecords,buildBalanceSheet,buildProgrammedBalanceSheet,classifyBalanceAccount} from '../src/aggregate/index.js';
+import {aggregateRecords,buildPivotTable,buildBalanceSheet,buildProgrammedBalanceSheet,classifyBalanceAccount} from '../src/aggregate/index.js';
 import {createDefaultStatementTemplate,mapTrialBalanceToTemplate,parseStatementTemplateRows} from '../src/accounting/template.js';
 import {diagnoseCleaning,cleanRawTable} from '../src/cleaner/index.js';
 import {cleanWorkbook,BATCH_LIMITS} from '../src/batch/index.js';
@@ -80,6 +80,35 @@ describe('local-first data workflow',()=>{
      ['商品','価格'],['A',100],['B',200]
    ]);
    expect(()=>openPrintReport({title:'x',rows:[]})).toThrow('PDF出力はブラウザで実行してください');
+ });
+ it('builds a vertical by horizontal pivot table and totals intersections',()=>{
+   const rows=[
+     {product:'商品A',store:'那覇',price:100},
+     {product:'商品A',store:'那覇',price:250},
+     {product:'商品A',store:'浦添',price:400},
+     {product:'商品B',store:'那覇',price:300}
+   ];
+   const pivot=buildPivotTable(rows,{rowField:'product',columnField:'store',valueField:'price'});
+   expect(pivot.rows).toEqual([
+     ['product × store','那覇','浦添','合計'],
+     ['商品A',350,400,750],
+     ['商品B',300,0,300],
+     ['合計',650,400,1050]
+   ]);
+   expect(pivot.grandTotal).toBe(1050);
+ });
+ it('keeps one-direction aggregation when no horizontal axis is selected',()=>{
+   const pivot=buildPivotTable([
+     {product:'商品A',price:100},{product:'商品A',price:50},{product:'商品B',price:30}
+   ],{rowField:'product',valueField:'price'});
+   expect(pivot.rows).toEqual([
+     ['product','price 合計'],['商品A',150],['商品B',30]
+   ]);
+ });
+ it('serializes tab-separated output without breaking tabs or quotes',()=>{
+   const tsv=toDelimited([['a','b'],['x\ty','a"b']],'\t');
+   expect(tsv).toContain('"x\ty"');
+   expect(tsv).toContain('"a""b"');
  });
  it('supports the simple two-field aggregation use case: item -> price total',()=>{
    const rows=[
