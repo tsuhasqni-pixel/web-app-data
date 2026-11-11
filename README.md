@@ -19,7 +19,7 @@ See development branch for the initial implementation.
 ## Product lanes and plan tiers
 - **Free — ¥0**
   - Local-first diagnostics and safe data-shaping preview.
-  - Lightweight aggregation: choose one grouping field and one numeric field; sum the numeric field by the group.
+  - Lightweight aggregation: choose a vertical axis, an optional horizontal axis, and one numeric field. Data Shaper can create a cross-tab/pivot-style sum at each vertical × horizontal intersection.
   - Simple report preview/export with top-five categories.
 - **Lite — ¥480/month (tier implemented; Stripe TEST Price not connected yet)**
   - Batch data shaping / normalization.
@@ -33,6 +33,8 @@ See development branch for the initial implementation.
 Report exports offer:
 - **CSV (UTF-8 BOM; Excel-friendly)**
 - **PDF** through a local browser print/save flow; report data is not uploaded to the Worker.
+
+Aggregation extraction preserves the input file format: CSV input → CSV output, TSV input → TSV output, XLSX input → XLSX output. The extracted file contains only the calculated aggregation table and never overwrites the uploaded source file.
 
 Report samples are explanatory only. Missing prior-year values are never fabricated. Accounting outputs are preparation/support materials, not tax representation or automated tax-law judgments.
 
@@ -57,7 +59,9 @@ The starter template is only a practical Japan-GAAP balance-sheet starter. It is
 
 
 ## Simple aggregation vs accounting
-- **Aggregation** is a generic two-field operation: choose one field to group by and one numeric field to sum.
-  - Example: `商品` → group key, `価格` → numeric field. Repeated rows for 商品A are summed.
+- **Aggregation** is a generic pivot-style operation: choose a vertical axis, an optional horizontal axis, and one numeric field to sum.
+  - Example: vertical=`商品`, horizontal=`店舗`, value=`価格` creates a 商品 × 店舗 matrix whose intersections contain summed prices.
+  - If the horizontal axis is omitted, it behaves as a one-direction grouped sum.
+  - The result can be extracted in the same file format as the input (CSV/TSV/XLSX).
   - No accounting template is involved.
 - **Statement layout** is the accounting workflow. It owns the statement template, trial-balance account mapping, many-to-one account rollups, and balance-sheet reconciliation.

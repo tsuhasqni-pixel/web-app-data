@@ -60,6 +60,54 @@ export function aggregateRecords(records,{groupBy=[],valueField,method='sum'}={}
   });
 }
 
+export function buildPivotTable(records,{rowField,columnField='',valueField}={}){
+  if(!Array.isArray(records))throw new Error('集計対象データがありません');
+  if(!rowField)throw new Error('縦軸を選択してください');
+  if(!valueField)throw new Error('集計する数値項目を選択してください');
+  if(columnField&&columnField===rowField)throw new Error('縦軸と横軸には別の項目を選択してください');
+
+  const rowOrder=[],columnOrder=[],rowSeen=new Set(),columnSeen=new Set();
+  const cells=new Map(),rowTotals=new Map(),columnTotals=new Map();
+  let grandTotal=0,validValueCount=0,skippedValueCount=0;
+
+  for(const row of records){
+    const value=numeric(row?.[valueField]);
+    if(value===null){skippedValueCount++;continue;}
+    const rowValue=String(row?.[rowField]??'');
+    const columnValue=columnField?String(row?.[columnField]??''):'';
+    if(!rowSeen.has(rowValue)){rowSeen.add(rowValue);rowOrder.push(rowValue);}
+    if(columnField&&!columnSeen.has(columnValue)){columnSeen.add(columnValue);columnOrder.push(columnValue);}
+    const key=JSON.stringify([rowValue,columnValue]);
+    cells.set(key,(cells.get(key)||0)+value);
+    rowTotals.set(rowValue,(rowTotals.get(rowValue)||0)+value);
+    if(columnField)columnTotals.set(columnValue,(columnTotals.get(columnValue)||0)+value);
+    grandTotal+=value;
+    validValueCount++;
+  }
+
+  if(!columnField){
+    return {
+      rows:[
+        [rowField,valueField+' 合計'],
+        ...rowOrder.map(rowValue=>[rowValue,rowTotals.get(rowValue)||0])
+      ],
+      rowValues:rowOrder,columnValues:[],
+      validValueCount,skippedValueCount,grandTotal
+    };
+  }
+
+  const rows=[
+    [rowField+' × '+columnField,...columnOrder,'合計'],
+    ...rowOrder.map(rowValue=>[
+      rowValue,
+      ...columnOrder.map(columnValue=>cells.get(JSON.stringify([rowValue,columnValue]))||0),
+      rowTotals.get(rowValue)||0
+    ]),
+    ['合計',...columnOrder.map(columnValue=>columnTotals.get(columnValue)||0),grandTotal]
+  ];
+  return {rows,rowValues:rowOrder,columnValues:columnOrder,validValueCount,skippedValueCount,grandTotal};
+}
+
 export function classifyBalanceAccount(account,{overrides={}}={}){
   const raw=String(account??'').trim();
   const name=normalized(raw);
