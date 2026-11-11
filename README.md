@@ -44,3 +44,10 @@ Template columns:
 - `normal_balance` (debit / credit)
 
 The starter template is only a practical Japan-GAAP balance-sheet starter. It is not claimed to be a complete EDINET taxonomy. EDINET/XBRL extraction and PDF/OCR ingestion can populate the same template model in later stages.
+
+
+## Simple aggregation vs accounting
+- **Aggregation** is a generic two-field operation: choose one field to group by and one numeric field to sum.
+  - Example: `商品` → group key, `価格` → numeric field. Repeated rows for 商品A are summed.
+  - No accounting template is involved.
+- **Statement layout** is the accounting workflow. It owns the statement template, trial-balance account mapping, many-to-one account rollups, and balance-sheet reconciliation.
