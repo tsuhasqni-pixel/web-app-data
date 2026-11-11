@@ -9,6 +9,7 @@ import {diagnoseCleaning,cleanRawTable} from '../src/cleaner/index.js';
 import {cleanWorkbook,BATCH_LIMITS} from '../src/batch/index.js';
 import {validate} from '../src/validator/index.js';
 import {exportCSV} from '../src/exporter/index.js';
+import {reportPurposes,buildSimpleReport,simpleReportToRows} from '../src/reporting/index.js';
 import {scenarios} from './fixtures/scenarios.js';
 
 describe('local-first data workflow',()=>{
@@ -53,6 +54,25 @@ describe('local-first data workflow',()=>{
    const agg=aggregateRecords(rows,{groupBy:['account_name'],valueField:'amount',method:'sum'});
    expect(agg.find(x=>x.account_name==='Cash').sum_amount).toBe(150);
    expect(rows).toHaveLength(3);
+ });
+ it('provides guided report purposes without pretending sample values are user history',()=>{
+   expect(reportPurposes.map(x=>x.id)).toEqual(expect.arrayContaining(['corporate','sole_blue','sole_white','household','custom']));
+   const household=reportPurposes.find(x=>x.id==='household');
+   expect(household.suggestedFields).toContain('収支区分');
+   expect(household.sample.length).toBeGreaterThan(0);
+ });
+ it('builds a free household summary from explicit category, amount and flow fields',()=>{
+   const rows=[
+     {category:'給与',amount:250000,flow_type:'収入'},
+     {category:'食費',amount:4000,flow_type:'支出'},
+     {category:'食費',amount:6000,flow_type:'支出'},
+     {category:'不明',amount:1000,flow_type:'その他'}
+   ];
+   const out=buildSimpleReport(rows,{categoryField:'category',amountField:'amount',flowField:'flow_type'});
+   expect(out.cashflow).toMatchObject({income:250000,expense:10000,net:240000,unknownFlowRows:1});
+   expect(out.categories.find(x=>x.category==='食費').amount).toBe(10000);
+   const csvRows=simpleReportToRows(out,'household');
+   expect(csvRows.some(r=>r[0]==='収支差額'&&r[1]===240000)).toBe(true);
  });
  it('supports the simple two-field aggregation use case: item -> price total',()=>{
    const rows=[
