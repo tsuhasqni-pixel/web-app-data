@@ -35,3 +35,7 @@ export function saveText(filename,text,mime='text/plain'){
  const a=document.createElement('a');a.href=url;a.download=filename;a.click();
  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+export function saveCsv(filename,csv){
+ const text=String(csv??'').startsWith('\\ufeff')?String(csv??''):'\\ufeff'+String(csv??'');
+ saveText(filename,text,'text/csv;charset=utf-8');
+}
