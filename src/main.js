@@ -7,8 +7,9 @@ import {cleanWorkbook,BATCH_LIMITS} from './batch/index.js';
 import {aggregateRecords,balanceSheetSections} from './aggregate/index.js';
 import {createDefaultStatementTemplate,parseStatementTemplateRows,mapTrialBalanceToTemplate,templateSections,templateToRows,aggregationToRows} from './accounting/template.js';
 import {toCSV} from './parser/csv.js';
-import {exportCSV,exportObjectRows,exportBalanceSheet,saveText} from './exporter/index.js';
+import {exportCSV,exportObjectRows,exportBalanceSheet,saveText,saveCsv} from './exporter/index.js';
 import {buildCleaningZip,saveBlob} from './exporter/batch.js';
+import {objectRowsToRows,openPrintReport} from './exporter/report.js';
 import {buildRecipe,validateRecipe} from './recipe/index.js';
 import {reportPurposes,getReportPurpose,buildSimpleReport,simpleReportToRows,reportDisclaimer} from './reporting/index.js';
 import './style.css';
@@ -80,8 +81,9 @@ function renderAuthBar(){
    const name=authState.user?.name||authState.user?.email||'Googleユーザー';
    el('span',' '+name,left);
    if(authState.user?.email)el('small',authState.user.email,left);
-   const badge=el('span',authState.entitlement?.pro?'Pro':'Free',left,'auth-badge '+(authState.entitlement?.pro?'pro':'free'));
-   badge.title='Googleログインは本人認証のみ。Pro権限はStripe entitlementで判定します。';
+   const tier=currentTier();
+   const badge=el('span',tier==='pro'?'Pro':tier==='lite'?'Lite':'Free',left,'auth-badge '+tier);
+   badge.title='Googleログインは本人認証のみ。有料権限はStripe entitlementで判定します。';
    button('ログアウト',logoutAuth,bar,'secondary-button');
  }else{
    el('span',' Free機能はログイン不要です。',left,'status');
@@ -90,7 +92,31 @@ function renderAuthBar(){
    login.rel='nofollow';
  }
 }
-function proAuthorized(){return authState.loaded&&authState.authenticated&&authState.entitlement?.pro===true;}
+const planRank={free:0,lite:1,pro:2};
+function currentTier(){
+ const tier=String(authState.entitlement?.tier||'free').toLowerCase();
+ if(authState.entitlement?.pro===true)return 'pro';
+ return planRank[tier]!==undefined?tier:'free';
+}
+function hasTier(required){return authState.loaded&&authState.authenticated&&planRank[currentTier()]>=planRank[required];}
+function liteAuthorized(){return hasTier('lite');}
+function proAuthorized(){return hasTier('pro');}
+function renderPlanOverview(){
+ const s=section('料金プラン');
+ const grid=el('div',undefined,s,'plan-grid');
+ const plans=[
+   {name:'Free',price:'¥0',className:'free',copy:'軽量集計、無料診断、簡易レポート。集計は「1項目でまとめて1数値を合計」まで無料。'},
+   {name:'Lite',price:'¥480 / 月',className:'lite',copy:'データ整形、全分類の汎用レポート、Recipe再利用。Stripe TEST接続は次工程で有効化。'},
+   {name:'Pro',price:'¥980 / 月',className:'pro',copy:'Liteの全機能＋法人・個人事業の決算/申告準備、勘定科目テンプレート、貸借一致確認。'}
+ ];
+ plans.forEach(plan=>{
+   const card=el('div',undefined,grid,'plan-card '+plan.className);
+   el('strong',plan.name,card);
+   el('span',plan.price,card,'plan-price');
+   el('p',plan.copy,card);
+ });
+ el('p','現在のStripe TEST決済はPro ¥980のみ接続済みです。Liteは価格階層を先に実装し、既存Proを壊さず別Priceとして接続します。',s,'status');
+}
 function renderProLocked(){
  const wrap=el('div',undefined,app,'workspace-panel');
  const s=section('Proアクセス',wrap);
@@ -113,6 +139,18 @@ function renderProLocked(){
 }
 function select(values,value,onChange,parent){const e=el('select',undefined,parent);for(const [v,t] of values){const o=el('option',t,e);o.value=v;}e.value=value;e.addEventListener('change',()=>onChange(e.value));return e;}
 function section(title,parent=app){const s=el('section',undefined,parent);el('h2',title,s);return s;}
+function renderOutputChoice(parent,{title,filenameBase,rows,note='' }){
+ const box=el('div',undefined,parent,'export-choice');
+ el('span','出力形式: ',box);
+ let format='csv';
+ select([['csv','CSV（Excelで開く）'],['pdf','PDF']],format,v=>{format=v;},box);
+ button('この形式で出力',()=>{
+   try{
+     if(format==='csv')saveCsv(filenameBase+'.csv',toCSV(rows));
+     else openPrintReport({title,rows,note});
+   }catch(e){alert('出力失敗: '+e.message);}
+ },box);
+}
 function clearResult(){result=null;report=null;}
 function setSelected(i){selected=sheets[Number(i)]||sheets[0];analysis=selected?detect(selected.rows):null;clearResult();bsConfig.overrides={};}
 function recordFields(){if(!result)return [];return [...new Set(result.records.flatMap(r=>Object.keys(r)))].filter(x=>!['source_file','source_sheet','source_row'].includes(x));}
@@ -129,9 +167,9 @@ function renderTabs(){
  const nav=el('div',undefined,app,'workspace-tabs');
  [
   ['free','無料診断 · Free'],
-  ['aggregate','集計 · Pro'],
-  ['balance','決算・レポート · Free / Pro'],
-  ['pro','クリーニング · Pro']
+  ['aggregate','集計 · Free'],
+  ['balance','決算・レポート · Free / Lite / Pro'],
+  ['pro','データ整形 · Lite']
  ].forEach(([id,label])=>{
    const b=button(label,()=>{workspaceTab=id;clearResult();render();},nav,'tab-button'+(workspaceTab===id?' active':''));
    b.setAttribute('aria-selected',String(workspaceTab===id));
@@ -152,25 +190,25 @@ function renderUpload(parent){
 }
 function renderFree(){
  const wrap=el('div',undefined,app,'workspace-panel');
- el('p','無料版は「どこに問題があり、何を安全に直せるか」を診断して、クリーニング工程を見せるためのモードです。元データの意味が不明な変更は行いません。',wrap,'lead');
+ el('p','無料版は「どこに問題があり、何を安全に直せるか」を診断して、データ整形工程を見せるためのモードです。元データの意味が不明な変更は行いません。',wrap,'lead');
  if(!renderUpload(wrap))return;
  const d=diagnoseCleaning(selected.rows,{headerRow:analysis.headerRow});
- const s=section('無料クリーニング診断',wrap);
+ const s=section('無料データ整形診断',wrap);
  const stats=el('div',undefined,s,'metric-grid');
  [['データ行',d.rows],['列',d.columns],['空欄',d.blanks],['前後空白',d.outerWhitespace],['全角/半角候補',d.fullWidth],['完全重複候補',d.duplicateRows]].forEach(([k,v])=>{const card=el('div',undefined,stats,'metric-card');el('strong',String(v),card);el('span',k,card);});
  const typeRows=(analysis.columnProfiles||[]).map(x=>({column:x.name||('column_'+(x.index+1)),type:x.inferredType,numeric_rate:Math.round(x.numericRate*100)+'%',date_rate:Math.round(x.dateRate*100)+'%',non_null_rate:Math.round(x.nonNullRate*100)+'%'}));
  el('h3','列型の推定',s);renderTable(s,typeRows,30);
- if(!d.suggestions.length)el('p','主要なクリーニング候補は検出されませんでした。',s,'status');
+ if(!d.suggestions.length)el('p','主要なデータ整形候補は検出されませんでした。',s,'status');
  d.suggestions.forEach(x=>{const card=el('div',undefined,s,'diagnostic-card '+(x.kind==='safe'?'safe':'review'));el('strong',x.title+'（'+x.count+'件）',card);el('p',x.reason,card);el('small',x.kind==='safe'?'安全寄りの候補：Before/Afterで確認':'要確認：意味を推測して自動変更しない',card);});
  const demo=cleanRawTable(selected.rows,{headerRow:analysis.headerRow,trim:true,width:true,removeExactDuplicates:false});
- const p=section('クリーニング工程プレビュー',wrap);
+ const p=section('データ整形工程プレビュー',wrap);
  el('p','無料版では「前後空白除去」「文字幅統一」の安全寄り処理だけを仮適用し、変更箇所を見せます。空欄補完・重複削除はしません。',p,'status');
  renderTable(p,demo.changes,20);
  if(!demo.changes.length)el('p','安全寄りルールで変更されるセルはありません。',p,'status');
- el('p','実ファイルへの一括適用・複数シート処理・出力はPro側の作業領域です。',p,'pro-note');
+ el('p','実ファイルへの一括適用・複数シート処理・出力はLite以上の作業領域です。',p,'pro-note');
 }
 function renderBatchPro(parent){
- const s=section('Pro：複数シート一括クリーニング',parent);
+ const s=section('Lite：複数シート一括データ整形',parent);
  el('p','最大 '+BATCH_LIMITS.maxSheets+' シート、合計 '+BATCH_LIMITS.maxTotalRows.toLocaleString()+' 行までを1回のバッチとして処理します。原ファイルはアップロードしません。',s,'status');
  const list=el('div',undefined,s,'sheet-list');
  sheets.forEach((sheet,i)=>{
@@ -183,7 +221,7 @@ function renderBatchPro(parent){
  checkbox(opts,'全角/半角を統一',batchOptions.width,v=>{batchOptions.width=v;batchResults=[];});
  checkbox(opts,'完全重複行を削除（要確認）',batchOptions.removeExactDuplicates,v=>{batchOptions.removeExactDuplicates=v;batchResults=[];});
  if(batchOptions.removeExactDuplicates)el('p','完全一致でも正当な複数取引の可能性があります。削除ONは明示選択した場合だけ適用します。',s,'warning');
- button('選択シートを一括クリーニング',()=>{try{batchResults=cleanWorkbook(sheets,[...selectedBatchSheets],batchOptions);render();}catch(e){alert(e.message);}},s);
+ button('選択シートを一括データ整形',()=>{try{batchResults=cleanWorkbook(sheets,[...selectedBatchSheets],batchOptions);render();}catch(e){alert(e.message);}},s);
  if(batchResults.length){
    const summary=el('div',undefined,s,'batch-summary');
    batchResults.forEach(item=>{
@@ -231,7 +269,7 @@ function renderPreview(parent){
 }
 function renderPro(){
  const wrap=el('div',undefined,app,'workspace-panel');
- el('p','Proは複数シートの実クリーニングと、選択シートの標準形式変換を行う契約者向け作業領域です。処理はLocal Firstで行います。',wrap,'lead');
+ el('p','Lite以上では複数シートのデータ整形と、選択シートの標準形式変換を行います。処理はLocal Firstです。',wrap,'lead');
  if(!renderUpload(wrap))return;
  renderBatchPro(wrap);
  renderMappingWorkspace(wrap);renderPreview(wrap);
@@ -278,7 +316,7 @@ function renderTemplateEditor(parent){
      render();
    }catch(e){alert('テンプレート読込失敗: '+e.message);}
  });
- button('現在のテンプレートをCSV保存',()=>saveText('data-shaper-statement-template.csv',toCSV(templateToRows(statementTemplate)),'text/csv;charset=utf-8'),s,'secondary-button');
+ button('現在のテンプレートをCSV保存',()=>saveCsv('data-shaper-statement-template.csv',toCSV(templateToRows(statementTemplate))),s,'secondary-button');
  const table=el('table',undefined,s);const head=el('tr',undefined,table);
  ['順','区分','勘定科目','別名（|区切り）','残高側','操作'].forEach(x=>el('th',x,head));
  statementTemplate.slice().sort((a,b)=>a.order-b.order).forEach((item,index)=>{
@@ -388,8 +426,13 @@ function renderAggregate(){
    }));
    el('p',aggregateConfig.group1+' ごとに '+aggregateConfig.valueField+' を合計しています。',s,'status');
    renderTable(s,view,100);
-   button('集計結果CSVをすぐ返す',()=>saveText('data-shaper-aggregate.csv',exportObjectRows(view),'text/csv;charset=utf-8'),s);
-   el('p','元ファイルはブラウザ内で処理し、サーバーへ保存しません。',s,'status');
+   renderOutputChoice(s,{
+     title:'Data Shaper 集計結果',
+     filenameBase:'data-shaper-aggregate',
+     rows:objectRowsToRows(view),
+     note:aggregateConfig.group1+' ごとに '+aggregateConfig.valueField+' を合計した軽量集計です。'
+   });
+   el('p','この軽量集計はFreeです。元ファイルはブラウザ内で処理し、サーバーへ保存しません。',s,'status');
  }catch(e){el('p',e.message,s,'error');}
 }
 function renderReportPurposeGuide(parent,purpose){
@@ -399,7 +442,7 @@ function renderReportPurposeGuide(parent,purpose){
  purpose.suggestedFields.forEach(x=>el('span',x,fields,'guide-chip'));
  el('h3','入力例',s);
  renderTable(s,purpose.sample,10);
- button('この入力例をサンプルCSVで保存',()=>saveText('data-shaper-'+purpose.id+'-sample.csv',exportObjectRows(purpose.sample),'text/csv;charset=utf-8'),s,'secondary-button');
+ button('この入力例をサンプルCSVで保存',()=>saveCsv('data-shaper-'+purpose.id+'-sample.csv',exportObjectRows(purpose.sample)),s,'secondary-button');
  el('p','サンプル値は使い方説明用であり、利用者の実績値・税務判断・推奨値ではありません。',s,'status');
 }
 
@@ -414,18 +457,25 @@ function ensureReportConfig(){
  return {available,numeric};
 }
 
-function renderInlineProGate(parent){
- const s=section('Pro：詳細レポート',parent);
- el('span','Pro',s,'plan-badge pro');
+function renderInlinePaidGate(parent,requiredTier){
+ const isPro=requiredTier==='pro';
+ const label=isPro?'Pro':'Lite';
+ const price=isPro?'¥980 / 月':'¥480 / 月';
+ const s=section(label+'：詳細機能',parent);
+ el('span',label,s,'plan-badge '+(isPro?'pro':'lite'));
  if(!authState.loaded)return el('p','ログイン状態を確認しています。',s,'status');
  if(!authState.authenticated){
-   el('p','Freeでは簡易レポートまで利用できます。詳細テンプレート、全分類出力、勘定科目対応の保存・再利用はProです。',s,'pro-note');
+   el('p','Freeでは簡易レポートまで利用できます。'+label+'では詳細出力・再利用機能を開放します。',s,'pro-note');
    const login=el('a','Googleでログイン',s,'login-link');login.href='/api/auth/google/start';return;
  }
- el('p','Google本人認証は完了しています。Pro権限はData Shaper専用のStripe entitlementでのみ開放します。',s,'pro-note');
- if(billingState.ready){
-   el('p','現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
-   button('TEST Proを開始（月額 ¥980）',startTestCheckout,s);
+ if(isPro){
+   el('p','決算・勘定科目対応はPro機能です。Googleログインだけでは開放せず、Stripe entitlementを確認します。',s,'pro-note');
+   if(billingState.ready){
+     el('p','現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
+     button('TEST Proを開始（月額 ¥980）',startTestCheckout,s);
+   }
+ }else{
+   el('p','Lite '+price+' の機能階層は実装済みですが、Lite用Stripe TEST Priceはまだ接続していません。現在のPro契約者はLite機能も利用できます。',s,'pro-note');
  }
 }
 
@@ -446,15 +496,20 @@ function renderStatementPreview(parent,agg,purpose){
    :'要確認：貸借差額 '+agg.totals.difference.toLocaleString()+' / 未対応科目 '+agg.unresolved.length;
  el('p','資産 '+agg.totals.assets.toLocaleString()+' / 負債 '+agg.totals.liabilities.toLocaleString()+' / 純資産 '+agg.totals.equity.toLocaleString(),s,'status');
  el('p',status,s,agg.totals.isBalanced?'status':'warning');
- button('決算・申告準備CSVを返す',()=>saveText('data-shaper-'+purpose.id+'-statement-prep.csv',toCSV(aggregationToRows(agg)),'text/csv;charset=utf-8'),s);
+ renderOutputChoice(s,{
+   title:'Data Shaper '+purpose.proLabel,
+   filenameBase:'data-shaper-'+purpose.id+'-statement-prep',
+   rows:aggregationToRows(agg),
+   note:reportDisclaimer
+ });
  el('p',reportDisclaimer,s,'legal-note');
 }
 
 function renderBalance(){
  const wrap=el('div',undefined,app,'workspace-panel');
- el('p','法人・個人事業・家計を同じ入口から整理します。Freeは簡易レポート、Proは詳細な決算・申告準備や再利用まで扱います。',wrap,'lead');
+ el('p','法人・個人事業・家計を同じ入口から整理します。Freeは簡易サマリー、Liteは家計・自由形式の詳細レポート、Proは法人・個人事業の決算・申告準備を扱います。',wrap,'lead');
  const purposeSection=section('レポートの目的',wrap);
- el('span','Free / Pro',purposeSection,'plan-badge mixed');
+ el('span','Free / Lite / Pro',purposeSection,'plan-badge mixed');
  select(reportPurposes.map(x=>[x.id,x.label]),reportConfig.purpose,v=>{reportConfig.purpose=v;reportConfig.categoryField='';reportConfig.amountField='';reportConfig.flowField='';render();},purposeSection);
  const purpose=getReportPurpose(reportConfig.purpose);
  el('p',purpose.description,purposeSection,'status');
@@ -487,15 +542,26 @@ function renderBalance(){
    el('h3','分類別 上位5項目',s);
    renderTable(s,simple.categories.slice(0,5).map(x=>({分類:x.category,金額:x.amount})),5);
    const freeReport={...simple,categories:simple.categories.slice(0,5)};
-   button('Free簡易レポートCSVを返す',()=>saveText('data-shaper-'+purpose.id+'-free-report.csv',toCSV(simpleReportToRows(freeReport,purpose.id)),'text/csv;charset=utf-8'),s);
-   el('p','Freeでは上位5分類までを簡易出力します。元ファイルはブラウザ内で処理し、Workerへ保存しません。',s,'status');
+   renderOutputChoice(s,{
+     title:'Data Shaper '+purpose.freeLabel,
+     filenameBase:'data-shaper-'+purpose.id+'-free-report',
+     rows:simpleReportToRows(freeReport,purpose.id),
+     note:reportDisclaimer
+   });
+   el('p','Freeでは上位5分類までを簡易出力します。法人・個人事業の正式な決算整理はProです。元ファイルはWorkerへ保存しません。',s,'status');
 
-   if(!proAuthorized()){renderInlineProGate(wrap);return;}
+   const requiredTier=['corporate','sole_blue','sole_white'].includes(purpose.id)?'pro':'lite';
+   if(!hasTier(requiredTier)){renderInlinePaidGate(wrap,requiredTier);return;}
 
-   const detail=section('Pro：詳細内訳',wrap);
-   el('span','Pro',detail,'plan-badge pro');
+   const detail=section((requiredTier==='pro'?'Pro':'Lite')+'：詳細内訳',wrap);
+   el('span',requiredTier==='pro'?'Pro':'Lite',detail,'plan-badge '+requiredTier);
    renderTable(detail,simple.categories.map(x=>({分類:x.category,金額:x.amount})),200);
-   button('全分類の詳細レポートCSVを返す',()=>saveText('data-shaper-'+purpose.id+'-pro-report.csv',toCSV(simpleReportToRows(simple,purpose.id)),'text/csv;charset=utf-8'),detail);
+   renderOutputChoice(detail,{
+     title:'Data Shaper '+purpose.proLabel,
+     filenameBase:'data-shaper-'+purpose.id+'-'+requiredTier+'-report',
+     rows:simpleReportToRows(simple,purpose.id),
+     note:reportDisclaimer
+   });
    el('p','前年データがない場合、比較率や前年比を推測して作りません。前年ファイルを追加できた場合だけ比較指標を計算する方針です。',detail,'status');
 
    if(['corporate','sole_blue'].includes(purpose.id)){
@@ -510,7 +576,7 @@ function renderBalance(){
      const note=section('Pro：白色申告向け整理',wrap);
      el('p','収入・費目別の詳細集計を入力準備資料として出します。税務上の必要経費該当性や申告書の完成判断は行いません。',note,'status');
    }else if(purpose.id==='household'){
-     const note=section('Pro：家計の詳細利用',wrap);
+     const note=section('Lite：家計の詳細利用',wrap);
      el('p','提出書類ではなく、家計管理・相談用の詳細内訳として利用します。過去データが追加された場合だけ期間比較を行う設計にします。',note,'status');
    }
  }catch(e){el('p',e.message,s,'error');}
@@ -549,12 +615,12 @@ function renderRecipe(){
 }
 
 function render(){
- app.replaceChildren();el('h1','Data Shaper',app);el('p','無料診断、集計、決算・レポート、ProクリーニングまでをLocal Firstで処理します。',app,'subtitle');renderAuthBar();renderTabs();
+ app.replaceChildren();el('h1','Data Shaper',app);el('p','軽量集計はFree、データ整形はLite、決算・勘定科目対応はProとしてLocal Firstで処理します。',app,'subtitle');renderAuthBar();renderPlanOverview();renderTabs();
  if(workspaceTab==='free')renderFree();
- if(workspaceTab==='pro')(proAuthorized()?renderPro():renderProLocked());
- if(workspaceTab==='aggregate')(proAuthorized()?renderAggregate():renderProLocked());
+ if(workspaceTab==='pro')(liteAuthorized()?renderPro():renderInlinePaidGate(app,'lite'));
+ if(workspaceTab==='aggregate')renderAggregate();
  if(workspaceTab==='balance')renderBalance();
- if(proAuthorized())renderRecipe();
+ if(liteAuthorized())renderRecipe();
  const footer=el('footer',undefined,app,'app-footer');
  const privacy=el('a','プライバシー',footer);privacy.href='/legal/privacy/';
  const terms=el('a','利用規約',footer);terms.href='/legal/terms/';

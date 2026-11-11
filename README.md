@@ -17,15 +17,24 @@ See development branch for the initial implementation.
 
 
 ## Product lanes and plan tiers
-- **Free diagnosis**: local-first diagnostics and safe cleaning preview.
-- **Aggregation (Pro)**: choose one grouping field and one numeric field; Data Shaper sums the numeric field by the selected grouping field.
-- **Decision & reports (Free / Pro)**:
-  - Free: purpose selection, guided sample rows, suggested input fields, top-five category summary, and a simple CSV report.
-  - Pro: full category detail, reusable settings, and accounting-template workflows where applicable.
-  - Supported purposes: corporate, sole proprietor (blue return preparation), sole proprietor (white return preparation), household/personal management, and custom.
-  - Report samples are explanatory only. Missing prior-year values are never fabricated.
-  - Outputs are accounting/data-preparation materials, not tax representation or automated tax-law judgments.
-- **Cleaning (Pro)**: batch cleaning and canonical output workflows.
+- **Free — ¥0**
+  - Local-first diagnostics and safe data-shaping preview.
+  - Lightweight aggregation: choose one grouping field and one numeric field; sum the numeric field by the group.
+  - Simple report preview/export with top-five categories.
+- **Lite — ¥480/month (tier implemented; Stripe TEST Price not connected yet)**
+  - Batch data shaping / normalization.
+  - Full household and custom-purpose report detail.
+  - Recipe save/reuse.
+- **Pro — ¥980/month (existing Stripe TEST checkout)**
+  - Everything in Lite.
+  - Corporate and sole-proprietor accounting preparation.
+  - Statement templates, source-account mapping, many-to-one rollups, and balance reconciliation.
+
+Report exports offer:
+- **CSV (UTF-8 BOM; Excel-friendly)**
+- **PDF** through a local browser print/save flow; report data is not uploaded to the Worker.
+
+Report samples are explanatory only. Missing prior-year values are never fabricated. Accounting outputs are preparation/support materials, not tax representation or automated tax-law judgments.
 
 ## Template-first accounting aggregation
 The accounting workflow is template-first, not a generic statistical GROUP BY workflow.
@@ -35,7 +44,7 @@ The accounting workflow is template-first, not a generic statistical GROUP BY wo
 3. Match each source account to a template account. Multiple source accounts may roll up into one template row.
 4. Keep unknown accounts unresolved until a human maps them; never silently discard them.
 5. Calculate the statement template and verify Assets = Liabilities + Equity.
-6. Return the calculated CSV immediately; the source file remains Local First.
+6. Return the calculated report as CSV or PDF; the source file remains Local First.
 
 Template columns:
 - `order`
