@@ -15,6 +15,8 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
       - run: npm run build
       - run: npx wrangler deploy --dry-run
       - name: Validate Worker Previews config
