@@ -40,15 +40,18 @@ export async function getUserIdentity(env,userId){
 }
 export async function resolveEntitlement(env,userId){
   if(env?.DATA_SHAPER_BILLING_ENABLED!=='true'){
-    return {tier:'free',pro:false,source:'stripe',reason:'billing_disabled'};
+    return {tier:'free',lite:false,pro:false,source:'stripe',reason:'billing_disabled'};
   }
-  if(!env?.DB?.prepare)return {tier:'unknown',pro:false,source:'stripe',reason:'identity_store_unavailable'};
+  if(!env?.DB?.prepare)return {tier:'unknown',lite:false,pro:false,source:'stripe',reason:'identity_store_unavailable'};
   try{
-    const row=await env.DB.prepare("SELECT status FROM stripe_entitlements WHERE user_id=? AND product_key='data-shaper-pro' AND status IN ('active','trialing') ORDER BY updated_at DESC LIMIT 1").bind(userId).first();
-    if(row?.status)return {tier:'pro',pro:true,source:'stripe',reason:'active_subscription'};
-    return {tier:'free',pro:false,source:'stripe',reason:'no_active_subscription'};
+    const row=await env.DB.prepare(
+      "SELECT product_key,status FROM stripe_entitlements WHERE user_id=? AND product_key IN ('data-shaper-pro','data-shaper-lite') AND status IN ('active','trialing') ORDER BY CASE product_key WHEN 'data-shaper-pro' THEN 2 WHEN 'data-shaper-lite' THEN 1 ELSE 0 END DESC, updated_at DESC LIMIT 1"
+    ).bind(userId).first();
+    if(row?.product_key==='data-shaper-pro')return {tier:'pro',lite:true,pro:true,source:'stripe',reason:'active_subscription'};
+    if(row?.product_key==='data-shaper-lite')return {tier:'lite',lite:true,pro:false,source:'stripe',reason:'active_subscription'};
+    return {tier:'free',lite:false,pro:false,source:'stripe',reason:'no_active_subscription'};
   }catch{
-    return {tier:'unknown',pro:false,source:'stripe',reason:'entitlement_store_unavailable'};
+    return {tier:'unknown',lite:false,pro:false,source:'stripe',reason:'entitlement_store_unavailable'};
   }
 }
 
@@ -68,17 +71,18 @@ export async function upsertStripeCustomerLink(env,userId,customerId){
     ON CONFLICT(user_id) DO UPDATE SET stripe_customer_id=excluded.stripe_customer_id,updated_at=excluded.updated_at`)
     .bind(userId,customerId,now).run();
 }
-export async function upsertStripeEntitlement(env,{subscriptionId,userId,customerId,priceId,status}){
+export async function upsertStripeEntitlement(env,{subscriptionId,userId,customerId,productKey,priceId,status}){
   const db=requireDb(env),now=isoNow();
+  if(!['data-shaper-lite','data-shaper-pro'].includes(productKey))throw new Error('invalid_product_key');
   await db.prepare(`INSERT INTO stripe_entitlements
     (stripe_subscription_id,user_id,stripe_customer_id,product_key,stripe_price_id,status,updated_at)
-    VALUES (?,?,?,'data-shaper-pro',?,?,?)
+    VALUES (?,?,?,?,?,?,?)
     ON CONFLICT(stripe_subscription_id) DO UPDATE SET
       user_id=excluded.user_id,
       stripe_customer_id=excluded.stripe_customer_id,
-      product_key='data-shaper-pro',
+      product_key=excluded.product_key,
       stripe_price_id=excluded.stripe_price_id,
       status=excluded.status,
       updated_at=excluded.updated_at`)
-    .bind(subscriptionId,userId,customerId,priceId||null,status,now).run();
+    .bind(subscriptionId,userId,customerId,productKey,priceId||null,status,now).run();
 }
