@@ -304,7 +304,7 @@ function renderTemplateEditor(parent){
 }
 function ensureStatementConfig(){
  const available=recordFields();
- if(!available.includes(statementConfig.accountField))statementConfig.accountField=available.includes('account_name')?'account_name':available[0]||'';
+ if(!available.includes(statementConfig.accountField))statementConfig.accountField=available.includes('account_name')?'account_name':'';
  if(!available.includes(statementConfig.amountField))statementConfig.amountField=available.includes('amount')?'amount':'';
  if(!available.includes(statementConfig.debitField))statementConfig.debitField=available.includes('debit')?'debit':'';
  if(!available.includes(statementConfig.creditField))statementConfig.creditField=available.includes('credit')?'credit':'';
@@ -314,7 +314,8 @@ function renderSourceColumnConfig(parent){
  const s=section('入力試算表の列',parent);
  const available=ensureStatementConfig();
  if(!available.length)return el('p','入力列がありません。標準化設定で列をMappingしてください。',s,'warning');
- el('span','勘定科目列: ',s);select(available.map(x=>[x,x]),statementConfig.accountField,v=>{statementConfig.accountField=v;templateMappings={};render();},s);
+ el('span','勘定科目列: ',s);select([['','選択してください'],...available.map(x=>[x,x])],statementConfig.accountField,v=>{statementConfig.accountField=v;templateMappings={};render();},s);
+ if(!statementConfig.accountField)el('p','勘定科目列を明示的にMappingしてください。別の列を勘定科目として推測しません。',s,'warning');
  el('span','残高列: ',s);select([['','借方・貸方から計算'],...available.map(x=>[x,x])],statementConfig.amountField,v=>{statementConfig.amountField=v;render();},s);
  if(!statementConfig.amountField){
    el('span','借方列: ',s);select([['','なし'],...available.map(x=>[x,x])],statementConfig.debitField,v=>{statementConfig.debitField=v;render();},s);
@@ -398,6 +399,7 @@ function renderReportPurposeGuide(parent,purpose){
  purpose.suggestedFields.forEach(x=>el('span',x,fields,'guide-chip'));
  el('h3','入力例',s);
  renderTable(s,purpose.sample,10);
+ button('この入力例をサンプルCSVで保存',()=>saveText('data-shaper-'+purpose.id+'-sample.csv',exportObjectRows(purpose.sample),'text/csv;charset=utf-8'),s,'secondary-button');
  el('p','サンプル値は使い方説明用であり、利用者の実績値・税務判断・推奨値ではありません。',s,'status');
 }
 
