@@ -8,41 +8,28 @@ const norm=v=>String(v??'').trim().normalize('NFKC').toLowerCase();
 export const reportPurposes=[
   {
     id:'corporate',
-    label:'法人',
-    freeLabel:'簡易参考サマリー',
-    proLabel:'法人決算・申告準備レポート',
-    description:'社内確認や法人税申告準備のために、勘定科目・残高・貸借一致を整理します。公式申告書そのものを自動作成する機能ではありません。',
+    label:'法人・会社',
+    freeLabel:'簡易事業サマリー',
+    proLabel:'会社向け財務・会計整理レポート',
+    description:'会社の社内確認・会計整理のために、勘定科目・残高・貸借一致を整理します。特定の国の公式申告書を自動作成する機能ではありません。',
     suggestedFields:['勘定科目','金額または残高','借方','貸方','日付または期間'],
     sample:[
-      {勘定科目:'現金及び預金',金額:1200000,メモ:'貸借対照表へ集約する例'},
+      {勘定科目:'現金及び預金',金額:1200000,メモ:'資産科目の集約例'},
       {勘定科目:'買掛金',金額:420000,メモ:'負債科目の例'},
       {勘定科目:'資本金',金額:780000,メモ:'純資産科目の例'}
     ]
   },
   {
-    id:'sole_blue',
-    label:'個人事業主（青色）',
+    id:'self_employed',
+    label:'個人事業・フリーランス',
     freeLabel:'簡易事業サマリー',
-    proLabel:'青色申告決算書 入力準備レポート',
-    description:'売上・経費・資産負債を整理し、本人または専門家が公式様式へ確認・転記しやすくする準備資料です。',
-    suggestedFields:['日付','摘要','勘定科目または費目','金額','収支区分'],
+    proLabel:'事業収支・会計整理レポート',
+    description:'個人事業・フリーランスの売上、経費、資産・負債を整理する汎用レポートです。特定の国の申告様式への自動転記や税務判断は行いません。',
+    suggestedFields:['日付','摘要','費目または勘定科目','金額','収支区分'],
     sample:[
       {日付:'2026-01-10',費目:'売上',金額:120000,収支区分:'収入'},
       {日付:'2026-01-12',費目:'通信費',金額:8000,収支区分:'支出'},
       {日付:'2026-01-15',費目:'旅費交通費',金額:4500,収支区分:'支出'}
-    ]
-  },
-  {
-    id:'sole_white',
-    label:'個人事業主（白色）',
-    freeLabel:'簡易事業サマリー',
-    proLabel:'収支内訳書 入力準備レポート',
-    description:'収入・必要経費の集計を整理する準備資料です。税務上の適否を自動判断せず、最終確認は利用者側で行います。',
-    suggestedFields:['日付','摘要','費目','金額','収支区分'],
-    sample:[
-      {日付:'2026-02-01',費目:'売上',金額:85000,収支区分:'収入'},
-      {日付:'2026-02-03',費目:'消耗品費',金額:6200,収支区分:'支出'},
-      {日付:'2026-02-06',費目:'水道光熱費',金額:9100,収支区分:'支出'}
     ]
   },
   {
@@ -76,15 +63,18 @@ export const reportPurposes=[
 export const reportDisclaimer='Data Shaperは会計データの整理・集計を補助するサービスです。税務代理、個別の税務判断、税務書類の作成代行を行うものではありません。申告・提出前に利用者自身で内容を確認し、必要に応じて税理士または所轄機関へ確認してください。';
 export const reportDisclaimerEn='Data Shaper assists with organizing and aggregating accounting data. It does not provide tax representation, individualized tax judgments, or tax-return preparation services. Review all outputs before filing and consult a qualified tax professional or authority when necessary.';
 const purposeEn={
-  corporate:{label:'Company',freeLabel:'Simple reference summary'},
-  sole_blue:{label:'Sole proprietor (blue return)',freeLabel:'Simple business summary'},
-  sole_white:{label:'Sole proprietor (white return)',freeLabel:'Simple business summary'},
+  corporate:{label:'Company',freeLabel:'Simple business summary'},
+  self_employed:{label:'Self-employed / Freelancer',freeLabel:'Simple business summary'},
   household:{label:'Household / personal',freeLabel:'Annual household summary'},
   custom:{label:'Custom',freeLabel:'Simple report'}
 };
 
+export function normalizeReportPurposeId(id){
+  if(id==='sole_blue'||id==='sole_white')return 'self_employed';
+  return reportPurposes.some(x=>x.id===id)?id:'household';
+}
 export function getReportPurpose(id){
-  return reportPurposes.find(x=>x.id===id)||reportPurposes.find(x=>x.id==='household');
+  return reportPurposes.find(x=>x.id===normalizeReportPurposeId(id))||reportPurposes.find(x=>x.id==='household');
 }
 
 function flowKind(value){
