@@ -126,3 +126,27 @@ test('English UI exposes aggregation, accounting reports, tax rules and deprecia
   await expect(page.getByRole('heading',{name:'Tax calculation helper · Pro'})).toBeVisible();
   await expect(page.getByText(/tax calculations by business, tax category, and effective period are Pro features/i)).toBeVisible();
 });
+
+
+test('paid UI keeps checkout disabled until explicit legal consent',async({page})=>{
+  await page.route('**/api/auth/session',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+    authenticated:true,user:{name:'Test User',email:'test@example.com'},entitlement:{tier:'free',pro:false,source:'stripe'}
+  })}));
+  await page.route('**/api/billing/status',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+    billing_enabled:true,mode:'test',ready_for_test:true,pro_ready:true,lite_ready:true,pro_ready_for_test:true,lite_ready_for_test:true,sale_gate_ready:false,
+    missing:[],pro_missing:[],lite_missing:[]
+  })}));
+  await page.goto('/');
+  await page.getByRole('button',{name:'決算・レポート · Free / Lite / Pro'}).click();
+  const purposeSection=page.locator('section').filter({has:page.getByRole('heading',{name:'レポートの目的'})});
+  await purposeSection.locator('select').selectOption('corporate');
+  const gate=page.locator('section').filter({has:page.getByRole('heading',{name:'Pro：詳細機能'})});
+  const buy=gate.getByRole('button',{name:'TEST Proを開始（月額 ¥980）'});
+  await expect(buy).toBeDisabled();
+  const consent=gate.getByRole('checkbox');
+  await expect(consent).not.toBeChecked();
+  await consent.check();
+  await expect(buy).toBeEnabled();
+  await expect(gate.getByRole('link',{name:'利用規約'})).toHaveAttribute('href','/legal/terms/');
+  await expect(gate.getByRole('link',{name:'課金・解約条件'})).toHaveAttribute('href','/legal/billing/');
+});
