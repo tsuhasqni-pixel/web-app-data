@@ -541,6 +541,10 @@ function renderTaxSettings(parent){
  catch(e){el('p','税率ルールエラー: '+e.message,s,'error');}
  if(!result||!taxConfig.rules.length)return;
  const available=recordFields(),numeric=numericRecordFields();
+ if(taxConfig.dateField&&!available.includes(taxConfig.dateField))taxConfig.dateField=available.includes('date')?'date':'';
+ if(taxConfig.businessField&&!available.includes(taxConfig.businessField))taxConfig.businessField=available.includes('business_unit')?'business_unit':'';
+ if(taxConfig.categoryField&&!available.includes(taxConfig.categoryField))taxConfig.categoryField=available.includes('tax_category')?'tax_category':'';
+ if(taxConfig.amountField&&!numeric.includes(taxConfig.amountField))taxConfig.amountField=numeric.includes('amount')?'amount':numeric[0]||'';
  el('span','取引日列: ',s);select([['','選択してください'],...available.map(x=>[x,x])],taxConfig.dateField,v=>{taxConfig.dateField=v;render();},s);
  el('span','事業区分列（任意）: ',s);select([['','なし'],...available.map(x=>[x,x])],taxConfig.businessField,v=>{taxConfig.businessField=v;render();},s);
  el('span','税区分列（任意）: ',s);select([['','なし'],...available.map(x=>[x,x])],taxConfig.categoryField,v=>{taxConfig.categoryField=v;render();},s);
@@ -564,7 +568,7 @@ function renderTaxSettings(parent){
 }
 function renderDepreciationHelper(parent){
  const s=section('減価償却計算補助',parent);
- el('p','税務上の法定償却率・保証率・改定償却率をData Shaperが自動決定する機能ではありません。定率法は確認済みの年率を入力して参考計算します。',s,'legal-note');
+ el('p','税務上の法定償却率・保証率・改定償却率をData Shaperが自動決定する機能ではありません。定率法は確認済みの年率を入力して参考計算します。期中取得の月割り、資産区分ごとの法定耐用年数、税務上の償却保証額への切替は自動判定しません。',s,'legal-note');
  const grid=el('div',undefined,s,'depreciation-grid');
  const addNumber=(label,key,min='0')=>{const box=el('label',undefined,grid);el('span',label,box);const i=el('input',undefined,box);i.type='number';i.min=min;i.step='0.01';i.value=depreciationConfig[key]??'';i.addEventListener('change',()=>{depreciationConfig[key]=i.value;depreciationConfig.result=null;});return i;};
  addNumber(tr('取得価額'),'cost');
