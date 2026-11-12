@@ -10,6 +10,8 @@ import {cleanWorkbook,BATCH_LIMITS} from '../src/batch/index.js';
 import {validate} from '../src/validator/index.js';
 import {exportCSV} from '../src/exporter/index.js';
 import {objectRowsToRows,openPrintReport} from '../src/exporter/report.js';
+import {validateTaxRules,resolveTaxRule,calculateTaxAmount,applyTaxRules} from '../src/tax/index.js';
+import {buildDepreciationSchedule} from '../src/depreciation/index.js';
 import {reportPurposes,buildSimpleReport,simpleReportToRows} from '../src/reporting/index.js';
 import {scenarios} from './fixtures/scenarios.js';
 
@@ -17,6 +19,12 @@ describe('local-first data workflow',()=>{
  it('preserves quoted commas and escaped quotes',()=>expect(parseCSV('a,b\r\n"hi, x","a""b"\r\n')[1]).toEqual(['hi, x','a"b']));
  it('supports CSV roundtrip',()=>{const rows=[['x','y'],['a,b','a"b']];expect(parseCSV(toCSV(rows))).toEqual(rows)});
  it('detects a shifted header',()=>{const d=detect([['Company'],['Note'],['SKU','Date','Demand'],['A','2026-01-01','12']]);expect(d.headerRow).toBe(2);expect(d.mapping[2]).toBe('demand_qty')});
+ it('maps business and tax category headers explicitly',()=>{
+   const d=detect([['日付','事業区分','税区分','金額'],['2026-01-01','A','standard','1000']]);
+   expect(d.mapping[1]).toBe('business_unit');
+   expect(d.mapping[2]).toBe('tax_category');
+   expect(d.mapping[3]).toBe('amount');
+ });
  it('detects daily and monthly wide formats',()=>{
    expect(detect(scenarios.find(x=>x.name==='03_wide_format').rows).orientation).toBe('wide');
    expect(detect(scenarios.find(x=>x.name==='16_monthly_columns').rows).orientation).toBe('wide');
@@ -74,6 +82,9 @@ describe('local-first data workflow',()=>{
    expect(out.categories.find(x=>x.category==='食費').amount).toBe(10000);
    const csvRows=simpleReportToRows(out,'household');
    expect(csvRows.some(r=>r[0]==='収支差額'&&r[1]===240000)).toBe(true);
+   const enRows=simpleReportToRows(out,'household',{language:'en'});
+   expect(enRows.some(r=>r[0]==='Net cash flow'&&r[1]===240000)).toBe(true);
+   expect(enRows.some(r=>r[0]==='Notice'&&String(r[1]).includes('does not provide tax representation'))).toBe(true);
  });
  it('converts object rows into table rows for CSV/PDF report export',()=>{
    expect(objectRowsToRows([{商品:'A',価格:100},{商品:'B',価格:200}])).toEqual([

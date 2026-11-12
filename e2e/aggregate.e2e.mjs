@@ -112,3 +112,16 @@ test('PDF renderer creates a printable Japanese report page',async({page,context
   await expect(popup.locator('body')).toContainText('ブラウザ内で生成したPDF保存用レポート');
   await expect.poll(()=>popup.evaluate(()=>document.documentElement.dataset.printCalled||'')).toBe('yes');
 });
+
+
+test('English UI exposes aggregation, accounting reports, tax rules and depreciation guidance',async({page})=>{
+  await page.goto('/');
+  await page.locator('.language-control select').selectOption('en');
+  await expect(page.getByRole('button',{name:'Aggregation · Free'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Accounting & Reports · Free / Lite / Pro'})).toBeVisible();
+  await page.getByRole('button',{name:'Accounting & Reports · Free / Lite / Pro'}).click();
+  await expect(page.getByRole('heading',{name:'Report purpose'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Tax rate rules'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Add tax rule'})).toBeVisible();
+  await expect(page.getByText(/never guesses tax rates from business type/i)).toBeVisible();
+});
