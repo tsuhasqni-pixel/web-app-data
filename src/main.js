@@ -139,7 +139,7 @@ function renderPlanOverview(){
    el('span',plan.price,card,'plan-price');
    el('p',plan.copy,card);
  });
- el('p','価格本体は Free ¥0 / Lite 月額¥480 / Pro 月額¥980 で固定します。税の扱いと最終支払額表示は販売開始前に事業者判断で確定し、Stripe TESTでは接続済みのTierだけ購入ボタンを有効化します。',s,'status');
+ el('p','お客様の支払総額は Free ¥0 / Lite 月額¥480 / Pro 月額¥980 です。Stripe Taxによる追加課税は前提にせず、事業者側の税務・会計処理とは分離します。',s,'status');
 }
 function renderProLocked(){
  const wrap=el('div',undefined,app,'workspace-panel');
@@ -674,12 +674,13 @@ function renderStatementPreview(parent,agg,purpose){
 
 function renderBalance(){
  const wrap=el('div',undefined,app,'workspace-panel');
- el('p','法人・個人事業・家計を同じ入口から整理します。Freeは簡易サマリー、Liteは家計・自由形式の詳細レポート、Proは法人・個人事業の決算・申告準備を扱います。',wrap,'lead');
+ el('p','会社・個人事業/フリーランス・家計を同じ入口から整理します。Freeは簡易サマリー、Liteは家計・自由形式の詳細レポート、Proは会社・個人事業の会計整理を扱います。',wrap,'lead');
  const purposeSection=section('レポートの目的',wrap);
  el('span','Free / Lite / Pro',purposeSection,'plan-badge mixed');
  select(reportPurposes.map(x=>[x.id,x.label]),reportConfig.purpose,v=>{reportConfig.purpose=v;reportConfig.categoryField='';reportConfig.amountField='';reportConfig.flowField='';render();},purposeSection);
  const purpose=getReportPurpose(reportConfig.purpose);
  el('p',purpose.description,purposeSection,'status');
+ if(language()==='en')el('p','英語表示は米国税制を意味しません。税務制度・提出様式は言語とは別に扱います。',purposeSection,'status');
  renderReportPurposeGuide(wrap,purpose);
  el('p',reportDisclaimer,wrap,'legal-note');
  if(['corporate','self_employed'].includes(purpose.id)){
@@ -723,7 +724,7 @@ function renderBalance(){
      rows:simpleReportToRows(freeReport,purpose.id,{language:language()}),
      note:tr(reportDisclaimer)
    });
-   el('p','Freeでは上位5分類までを簡易出力します。法人・個人事業の正式な決算整理はProです。元ファイルはWorkerへ保存しません。',s,'status');
+   el('p','Freeでは上位5分類までを簡易出力します。会社・個人事業/フリーランスの詳細な会計整理はProです。元ファイルはWorkerへ保存しません。',s,'status');
 
    const requiredTier=['corporate','self_employed'].includes(purpose.id)?'pro':'lite';
    if(!hasTier(requiredTier)){renderInlinePaidGate(wrap,requiredTier);return;}
