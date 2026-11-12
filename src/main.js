@@ -152,12 +152,15 @@ function renderProLocked(){
    el('p','Google本人認証は完了しています。ただし現在、有効なData Shaper ProのStripe entitlementを確認できないためPro機能は開放しません。',s,'warning');
    el('p','Googleログイン成功だけでPro権限を付与しない設計です。',s,'status');
     if(!billingState.loaded){
-      el('p','Stripe TEST接続状態を確認しています。',s,'status');
-    }else if(billingState.ready){
-      el('p','現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
-      button('TEST Proを開始（月額 ¥980）',()=>startTestCheckout('pro'),s);
+      el('p','Stripe接続状態を確認しています。',s,'status');
+    }else if(billingState.proReady){
+      const live=billingState.mode==='live';
+      el('p',live?'Pro ¥980 / 月額自動更新。最終支払額はStripe Checkoutで確認してください。':'現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
+      renderLegalConsent(s,'pro');
+      const b=button((live?'':'TEST ')+'Proを開始（月額 ¥980）',()=>startCheckout('pro'),s);
+      b.disabled=legalConsent.pro!==true;
     }else{
-      el('p','Stripe TEST決済は準備中です。',s,'status');
+      el('p',billingState.mode==='live'?'販売開始条件の確認が完了していないため、購入を停止しています。':'Stripe TEST決済は準備中です。',s,'status');
     }
  }
 }
