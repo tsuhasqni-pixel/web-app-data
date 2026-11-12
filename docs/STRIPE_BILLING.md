@@ -1,69 +1,83 @@
-# Data Shaper Stripe billing boundary
+# Data Shaper Stripe Billing
 
-## Current state
+Updated: 2026-11-12
 
-Billing remains disabled by default:
+## Roles
 
-```text
-DATA_SHAPER_BILLING_ENABLED=false
-```
+- Google OIDC: identity only.
+- Stripe: Customer / Checkout / Subscription / Customer Portal and paid entitlement authority.
+- Data Shaper D1: Google sub -> internal user -> Stripe Customer -> Stripe Subscription status.
+- Google login alone never grants Lite or Pro.
 
-Google OAuth is identity-only. Stripe is the only source of truth for Data Shaper Pro.
+## Plans
 
-## Test-only runtime settings
+- Free: ¥0
+- Lite: ¥480 / month
+- Pro: ¥980 / month
 
-The current scaffold intentionally accepts TEST-mode Stripe credentials only.
+The nominal price is not a substitute for the final customer-facing total. Tax treatment and the total shown at checkout must be owner-confirmed before live sale.
 
-```text
-STRIPE_TEST_SECRET_KEY=<sk_test_... or rk_test_...>
-DATA_SHAPER_STRIPE_TEST_PRICE_ID=<Data Shaper-specific price_...>
-DATA_SHAPER_STRIPE_WEBHOOK_SECRET=<whsec_...>
-DATA_SHAPER_BILLING_ENABLED=false
-```
+## TEST and LIVE isolation
 
-Do not reuse DemandScope or NamiData Product / Price IDs.
+TEST is the default. LIVE is selected only when `DATA_SHAPER_LIVE_BILLING_ENABLED=true`.
 
-## Endpoints
+TEST variables:
+- STRIPE_TEST_SECRET_KEY
+- DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID
+- DATA_SHAPER_STRIPE_TEST_PRICE_ID (Pro)
+- DATA_SHAPER_STRIPE_WEBHOOK_SECRET
+- optional DATA_SHAPER_STRIPE_TEST_PORTAL_CONFIG_ID
 
-- `GET /api/billing/status` — secret-safe readiness
-- `POST /api/billing/checkout` — authenticated, same-origin, subscription Checkout; disabled unless billing flag is true
-- `POST /api/billing/portal` — authenticated Stripe Customer Portal
-- `POST /api/billing/webhook` — Stripe signature verification before D1 mutation
+LIVE variables:
+- STRIPE_LIVE_SECRET_KEY
+- DATA_SHAPER_STRIPE_LIVE_LITE_PRICE_ID
+- DATA_SHAPER_STRIPE_LIVE_PRO_PRICE_ID
+- DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET
+- DATA_SHAPER_STRIPE_LIVE_PORTAL_CONFIG_ID
 
-## Identity and entitlement flow
+LIVE additionally requires:
+- DATA_SHAPER_TAX_DISPLAY_CONFIRMED=true
+- DATA_SHAPER_REFUND_POLICY_CONFIRMED=true
+- DATA_SHAPER_LIVE_SALE_APPROVED=true
+- canonical HTTPS APP_ORIGIN
+- D1 binding and commercial schema
 
-```text
-Google sub
-  -> internal Data Shaper user_id
-  -> Stripe Customer
-  -> Data Shaper-only Subscription
-  -> stripe_entitlements(product_key=data-shaper-pro)
-  -> Pro
-```
+## LIVE price verification
 
-Email is not an entitlement key.
+Before LIVE Checkout, Data Shaper retrieves the configured Stripe Price and requires:
+- livemode=true
+- active Price
+- JPY
+- Lite exactly ¥480/month or Pro exactly ¥980/month
+- active expanded Product
+- Product metadata: app=data-shaper and tier=lite|pro
 
-## Webhook handling
+Any mismatch stops Checkout.
 
-The handler verifies the raw request body against the Stripe-Signature `v1` HMAC SHA-256 signature with a 5 minute timestamp tolerance.
+## Checkout consent
 
-Handled events:
+The browser must explicitly accept the Terms / Privacy / Billing conditions.
+The server also requires `accept_terms=true` and stores:
+- legal version
+- acceptance timestamp
+- internal user ID
+- tier / product key
+in Stripe Checkout metadata. Completed Checkout acceptance evidence is persisted in D1.
 
-- `checkout.session.completed` -> internal user_id ↔ Stripe Customer
-- `customer.subscription.created`
-- `customer.subscription.updated`
-- `customer.subscription.deleted`
+## Webhooks
 
-Subscription events update D1 using `product_key=data-shaper-pro`. Duplicate deliveries are idempotent because customer and subscription rows are upserts.
+- Stripe signature is required.
+- Maximum raw payload: 1 MB.
+- event.livemode must match active TEST/LIVE mode.
+- event ID is recorded in D1 for idempotency.
+- failed events remain unprocessed so Stripe retry can be accepted.
+- Subscription events update only Data Shaper product keys / configured tier prices.
 
-## HOLD before enabling billing
+## Customer Portal
 
-Do not set `DATA_SHAPER_BILLING_ENABLED=true` until all are true:
+Portal access requires an authenticated internal user linked to a Stripe Customer.
+LIVE requires a configured live Billing Portal configuration.
 
-1. A Data Shaper-specific Stripe TEST Product and recurring Price exist.
-2. Tax treatment has been explicitly decided; no tax behavior is guessed.
-3. The webhook endpoint exists in Stripe TEST mode and its signing secret is installed.
-4. Checkout → webhook → D1 entitlement → Pro UI passes E2E.
-5. Customer Portal returns to the Data Shaper origin.
-6. No DemandScope or NamiData Product / Price IDs are present.
-7. Live billing remains separately gated.
+## Release rule
+
+Do not set LIVE sale gates true until the owner-only steps in PRE_SALE_AUDIT_2026-11-12.md are complete.
