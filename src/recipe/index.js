@@ -23,8 +23,13 @@ export function buildRecipe({sheets,analysis,options,profile,orientation,wideVal
 }
 export function validateRecipe(recipe,{sheets,analysis,allowedFields}){
   if(!recipe||![1,2,3,4,5,6].includes(recipe.schema_version))throw new Error('未対応のRecipe versionです');
+  const serialized=JSON.stringify(recipe);
+  if(serialized.length>1024*1024)throw new Error('Recipeが1 MBの安全上限を超えています');
   if(!Array.isArray(recipe.source_headers))throw new Error('Recipeにsource_headersがありません');
-  if(!recipe.mapping||Object.values(recipe.mapping).some(v=>v&&!allowedFields.includes(v)))throw new Error('Recipeのmappingが不正です');
+  if(recipe.source_headers.length>500)throw new Error('Recipeの列数が安全上限を超えています');
+  if(!recipe.mapping||Object.keys(recipe.mapping).length>500||Object.values(recipe.mapping).some(v=>v&&!allowedFields.includes(v)))throw new Error('Recipeのmappingが不正です');
+  if(Array.isArray(recipe.statementTemplate)&&recipe.statementTemplate.length>1000)throw new Error('Recipeの決算書テンプレートが1000科目の上限を超えています');
+  if(Array.isArray(recipe.taxConfig?.rules)&&recipe.taxConfig.rules.length>200)throw new Error('Recipeの税率ルールが200件の上限を超えています');
   const exactHeaders=stable(recipe.source_headers)===stable(analysis.header);
   const currentSig=sourceSignature(sheets,analysis);
   const signatureMatch=recipe.source_signature?recipe.source_signature===currentSig:false;

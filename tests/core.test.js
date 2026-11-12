@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest';
-import {parseCSV,toCSV,toDelimited} from '../src/parser/csv.js';
+import {parseCSV,toCSV,toDelimited,spreadsheetSafeValue} from '../src/parser/csv.js';
+import {readWorkbook,WORKBOOK_LIMITS} from '../src/parser/index.js';
 import {detect} from '../src/detector/index.js';
 import {buildRecipe,validateRecipe,sourceSignature} from '../src/recipe/index.js';
 import {transform} from '../src/transform/index.js';
@@ -18,6 +19,18 @@ import {scenarios} from './fixtures/scenarios.js';
 describe('local-first data workflow',()=>{
  it('preserves quoted commas and escaped quotes',()=>expect(parseCSV('a,b\r\n"hi, x","a""b"\r\n')[1]).toEqual(['hi, x','a"b']));
  it('supports CSV roundtrip',()=>{const rows=[['x','y'],['a,b','a"b']];expect(parseCSV(toCSV(rows))).toEqual(rows)});
+ it('neutralizes spreadsheet formulas without breaking ordinary negative numbers',()=>{
+   expect(spreadsheetSafeValue('=2+2')).toBe("'=2+2");
+   expect(spreadsheetSafeValue('@SUM(A1:A2)')).toBe("'@SUM(A1:A2)");
+   expect(spreadsheetSafeValue('-3')).toBe('-3');
+   expect(toCSV([['value'],['=HYPERLINK("https://evil.example")'],['-3']])).toContain("'=HYPERLINK");
+ });
+ it('rejects CSV that expands beyond the workbook row safety limit',async()=>{
+   const text=Array.from({length:WORKBOOK_LIMITS.maxRows+1},(_,i)=>i===0?'x':'1').join('\n');
+   const bytes=new TextEncoder().encode(text);
+   const file={name:'too-many.csv',size:bytes.byteLength,arrayBuffer:async()=>bytes.buffer};
+   await expect(readWorkbook(file)).rejects.toThrow(/100,000 row safety limit/);
+ });
  it('detects a shifted header',()=>{const d=detect([['Company'],['Note'],['SKU','Date','Demand'],['A','2026-01-01','12']]);expect(d.headerRow).toBe(2);expect(d.mapping[2]).toBe('demand_qty')});
  it('maps business and tax category headers explicitly',()=>{
    const d=detect([['日付','事業区分','税区分','金額'],['2026-01-01','A','standard','1000']]);

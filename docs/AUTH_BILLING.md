@@ -1,55 +1,46 @@
-# Authentication, billing, and disclosure plan
+# Data Shaper Authentication and Billing
 
-## End-user authentication
+Updated: 2026-11-12
 
-Data Shaper will not use GitHub OAuth as an end-user login method.
+## Identity architecture
 
-The intended model is:
+Google OIDC is the sole application identity provider.
 
-1. Stripe owns payment/customer/subscription identity.
-2. Data Shaper verifies its own Stripe entitlement server-side.
-3. Cross-device or cookie-recovery login reuses the shared Auth Mail Gateway for email-possession verification.
-4. Data Shaper re-checks Stripe after the Gateway assertion before issuing a Data Shaper-specific HttpOnly session/cookie.
+Flow:
+1. Google OIDC validates issuer, audience, nonce, state and PKCE.
+2. Google stable `sub` is stored in oauth_identities.
+3. An internal user ID is created / reused.
+4. Stripe Customer is linked to that internal user.
+5. Stripe Subscription state is stored as entitlement evidence.
+6. Every paid access decision is based on Stripe entitlement, not Google email.
 
-The shared Gateway must never receive Data Shaper Stripe secrets.
+Email is contact / display data. It is not a paid-role key.
 
-## Shared Auth Mail Gateway
+## Session rules
 
-Repository: `shihuiarenjinba-png/Auth-Mail-Gateway`.
+- signed HttpOnly cookie
+- SameSite=Lax
+- Secure on HTTPS
+- bounded TTL
+- logout clears the application session
+- OAuth flow state has its own short-lived cookie
 
-Gateway responsibilities:
-- send one-time Magic Link email from the shared `noreply@` sender
-- verify email possession
-- issue a short-lived one-time assertion
-- HMAC authenticate app-to-gateway requests
-- replay/rate-limit protection
+## Paid entitlement rules
 
-Data Shaper responsibilities:
-- verify Data Shaper Product/Price/subscription before requesting email
-- keep `AUTH_MAIL_APP_SECRET` server-side only
-- validate callback state
-- consume the assertion
-- verify Stripe again
-- issue its own session/cookie
+Tier order: Free < Lite < Pro.
 
-Current status: HOLD until the Data Shaper backend, Stripe Test product/price, callback endpoint, and Gateway sender-domain E2E exist.
+Active / trialing Data Shaper subscriptions may grant access only when:
+- product_key belongs to Data Shaper
+- price ID is the configured tier price
+- status is active or trialing
+- user / customer binding is valid
 
-## Stripe separation
+Other NamiData / DemandScope products are never accepted.
 
-Data Shaper must use product-specific Stripe metadata/price identifiers. Do not reuse DemandScope or NamiData Product/Price IDs.
+## Cross-device behavior
 
-No live billing flag should be enabled before test-mode Checkout, webhook, portal, entitlement and cancellation E2E pass.
+A user signs in with the same Google identity. The server resolves the internal user, linked Stripe Customer and current active Subscription. Email text alone is never sufficient to restore paid access.
 
-## Information disclosure
+## Failure mode
 
-Business/operator disclosure should link to the shared legal/disclosure page already maintained for the data-science services. Product-specific price, renewal, cancellation, refund and service conditions remain on Data Shaper pages.
-
-## Deployment authentication
-
-End-user login and deployment authentication are different concerns. GitHub OAuth is not required for users.
-
-For deployment, prefer a headless CI path when practical:
-
-`GitHub Actions → npm test/build → Wrangler → Cloudflare`
-
-Use a narrowly scoped Cloudflare API token in GitHub Secrets. Never expose it to browser code or commit it.
+Authentication, billing configuration, product identity, price verification or database uncertainty fails closed.

@@ -12,14 +12,17 @@
     "test:e2e": "playwright test -c playwright.config.mjs"
   },
   "dependencies": {
-    "read-excel-file": "^5.8.6",
-    "fflate": "^0.8.2",
-    "write-excel-file": "^4.1.1"
+    "read-excel-file": "5.8.6",
+    "fflate": "0.8.2",
+    "write-excel-file": "4.1.1"
   },
   "devDependencies": {
-    "vite": "^6.3.5",
-    "vitest": "^3.2.4",
-    "wrangler": "^4.158.0",
-    "@playwright/test": "^1.56.1"
+    "vite": "6.3.5",
+    "vitest": "3.2.4",
+    "wrangler": "4.158.0",
+    "@playwright/test": "1.56.1"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }

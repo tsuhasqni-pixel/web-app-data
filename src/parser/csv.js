@@ -14,10 +14,18 @@ export function parseCSV(text, delimiter) {
   if(field!==''||row.length){row.push(field);rows.push(row);}
   return rows;
 }
+export function spreadsheetSafeValue(value){
+  if(value===null||value===undefined)return '';
+  if(typeof value==='number'||typeof value==='boolean'||value instanceof Date)return value;
+  const s=String(value);
+  const trimmed=s.replace(/^[\u0000-\u0020]+/,'');
+  if(/^[=+\-@]/.test(trimmed)&&!Number.isFinite(Number(trimmed)))return "'"+s;
+  return s;
+}
 export function toDelimited(rows,delimiter=','){
   const sep=String(delimiter||',');
   return rows.map(r=>r.map(v=>{
-    const s=String(v??'');
+    const s=String(spreadsheetSafeValue(v));
     const needsQuote=s.includes('"')||s.includes('\r')||s.includes('\n')||s.includes(sep);
     return needsQuote?'"'+s.replace(/"/g,'""')+'"':s;
   }).join(sep)).join('\r\n')+'\r\n';

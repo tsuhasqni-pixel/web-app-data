@@ -31,3 +31,14 @@ LEGAL_DISCLOSURE_URL=https://namidata-lab-public.lingering-salad-74bc.workers.de
 
 # Set true only after the business owner confirms tax treatment and customer-facing total-price display.
 DATA_SHAPER_TAX_DISPLAY_CONFIRMED=false
+
+
+# LIVE — keep every gate closed until commercial review is complete.
+DATA_SHAPER_LIVE_BILLING_ENABLED=false
+DATA_SHAPER_REFUND_POLICY_CONFIRMED=false
+DATA_SHAPER_LIVE_SALE_APPROVED=false
+# STRIPE_LIVE_SECRET_KEY=rk_live_REPLACE_ME
+# DATA_SHAPER_STRIPE_LIVE_LITE_PRICE_ID=price_REPLACE_ME
+# DATA_SHAPER_STRIPE_LIVE_PRO_PRICE_ID=price_REPLACE_ME
+# DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET=whsec_REPLACE_ME
+# DATA_SHAPER_STRIPE_LIVE_PORTAL_CONFIG_ID=bpc_REPLACE_ME

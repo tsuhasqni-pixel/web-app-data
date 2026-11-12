@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
-import {billingConfig,billingMissing,createCheckoutSession,verifyStripeWebhook} from '../src/billing/stripe.js';
-import {subscriptionMatchesDataShaper} from '../src/billing/routes.js';
+import {billingConfig,billingMissing,billingMode,createCheckoutSession,verifyStripeWebhook,validateTierPriceObject} from '../src/billing/stripe.js';
+import {subscriptionMatchesDataShaper,handleCheckout,handleWebhook} from '../src/billing/routes.js';
 
 const ORIGIN='https://data.example.com';
 const USER_ID='usr_12345678-1234-1234-1234-123456789abc';
@@ -129,5 +129,109 @@ describe('Data Shaper webhook entitlement boundary',()=>{
       metadata:{product_key:'data-shaper-lite'},
       items:{data:[{price:{id:baseEnv.DATA_SHAPER_STRIPE_TEST_PRICE_ID}}]}
     })).toBe(false);
+  });
+});
+
+
+describe('Data Shaper LIVE sale gates',()=>{
+  const liveEnv={
+    DATA_SHAPER_BILLING_ENABLED:'true',
+    DATA_SHAPER_LIVE_BILLING_ENABLED:'true',
+    STRIPE_LIVE_SECRET_KEY:'rk_live_example123',
+    DATA_SHAPER_STRIPE_LIVE_PRO_PRICE_ID:'price_livepro123',
+    DATA_SHAPER_STRIPE_LIVE_LITE_PRICE_ID:'price_livelite123',
+    DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET:'whsec_liveexample123',
+    DATA_SHAPER_STRIPE_LIVE_PORTAL_CONFIG_ID:'bpc_liveexample123',
+    DATA_SHAPER_TAX_DISPLAY_CONFIRMED:'true',
+    DATA_SHAPER_REFUND_POLICY_CONFIRMED:'true',
+    DATA_SHAPER_LIVE_SALE_APPROVED:'true',
+    APP_ORIGIN:ORIGIN,
+    DB:{prepare(){}}
+  };
+  it('keeps TEST and LIVE configuration strictly separate',()=>{
+    expect(billingMode(baseEnv)).toBe('test');
+    expect(billingMode(liveEnv)).toBe('live');
+    expect(billingMissing({...liveEnv,STRIPE_LIVE_SECRET_KEY:'sk_test_wrong'},'pro')).toContain('STRIPE_LIVE_SECRET_KEY');
+    expect(billingMissing({...liveEnv,DATA_SHAPER_LIVE_SALE_APPROVED:'false'},'pro')).toContain('DATA_SHAPER_LIVE_SALE_APPROVED');
+  });
+  it('validates exact JPY monthly prices and Data Shaper product metadata',()=>{
+    const good={livemode:true,active:true,currency:'jpy',unit_amount:980,recurring:{interval:'month',interval_count:1},product:{active:true,metadata:{app:'data-shaper',tier:'pro'}}};
+    expect(validateTierPriceObject(good,{tier:'pro',livemode:true}).ok).toBe(true);
+    expect(validateTierPriceObject({...good,unit_amount:981},{tier:'pro',livemode:true}).reason).toBe('amount');
+    expect(validateTierPriceObject({...good,product:{active:true,metadata:{app:'other',tier:'pro'}}},{tier:'pro',livemode:true}).reason).toBe('product_metadata');
+    expect(validateTierPriceObject({...good,unit_amount:480,product:{active:true,metadata:{app:'data-shaper',tier:'lite'}}},{tier:'lite',livemode:true}).ok).toBe(true);
+  });
+  it('re-verifies the live Stripe Price before creating Checkout',async()=>{
+    const calls=[];
+    const goodPrice={livemode:true,active:true,currency:'jpy',unit_amount:980,recurring:{interval:'month',interval_count:1},product:{active:true,metadata:{app:'data-shaper',tier:'pro'}}};
+    const out=await createCheckoutSession({
+      env:liveEnv,userId:USER_ID,email:'user@example.com',tier:'pro',legalVersion:'2026-11-12',acceptedAt:1700000000,
+      fetchImpl:async(url,init)=>{
+        calls.push({url,init});
+        if(init.method==='GET')return new Response(JSON.stringify(goodPrice),{status:200,headers:{'content-type':'application/json'}});
+        return new Response(JSON.stringify({id:'cs_live_123',url:'https://checkout.stripe.com/c/pay/live'}),{status:200,headers:{'content-type':'application/json'}});
+      }
+    });
+    expect(out.mode).toBe('live');
+    expect(calls[0].url).toContain('/prices/price_livepro123');
+    const body=new URLSearchParams(calls[1].init.body);
+    expect(calls[1].init.headers.authorization).toBe('Bearer rk_live_example123');
+    expect(body.get('line_items[0][price]')).toBe('price_livepro123');
+    expect(body.get('metadata[legal_version]')).toBe('2026-11-12');
+    expect(body.get('metadata[legal_accepted_at]')).toBe('1700000000');
+  });
+});
+
+describe('Commercial request hardening',()=>{
+  it('refuses Checkout before explicit legal consent',async()=>{
+    const req=new Request(ORIGIN+'/api/billing/checkout',{
+      method:'POST',
+      headers:{Origin:ORIGIN,'content-type':'application/json'},
+      body:JSON.stringify({tier:'pro'})
+    });
+    const res=await handleCheckout(req,baseEnv);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('legal_consent_required');
+  });
+  it('rejects a signed webhook whose livemode does not match the active billing mode',async()=>{
+    const raw=JSON.stringify({id:'evt_live_wrong',type:'payment_intent.succeeded',livemode:true,created:1700000000,data:{object:{}}});
+    const sig=await webhookSignature(raw,1700000000);
+    const req=new Request(ORIGIN+'/api/billing/webhook',{method:'POST',headers:{'Stripe-Signature':sig},body:raw});
+    const res=await handleWebhook(req,baseEnv,{now:1700000000});
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('invalid_stripe_event');
+  });
+  it('acknowledges a duplicate Stripe event only once',async()=>{
+    const events=new Map();
+    const db={
+      prepare(sql){
+        return {
+          args:[],
+          bind(...args){this.args=args;return this},
+          async first(){
+            if(sql.startsWith('SELECT processed_at FROM stripe_webhook_events'))return events.get(this.args[0])||null;
+            return null;
+          },
+          async run(){
+            if(sql.startsWith('INSERT OR IGNORE INTO stripe_webhook_events')){
+              if(!events.has(this.args[0]))events.set(this.args[0],{processed_at:null});
+            }else if(sql.startsWith('UPDATE stripe_webhook_events SET processed_at=')){
+              const row=events.get(this.args[0]);if(row)row.processed_at='now';
+            }else if(sql.startsWith('UPDATE stripe_webhook_events SET last_error=')){
+              const row=events.get(this.args[1]);if(row)row.last_error=this.args[0];
+            }
+            return {success:true};
+          }
+        };
+      }
+    };
+    const env={...baseEnv,DB:db};
+    const raw=JSON.stringify({id:'evt_test_duplicate',type:'payment_intent.succeeded',livemode:false,created:1700000000,data:{object:{}}});
+    const sig=await webhookSignature(raw,1700000000);
+    const make=()=>new Request(ORIGIN+'/api/billing/webhook',{method:'POST',headers:{'Stripe-Signature':sig},body:raw});
+    const first=await handleWebhook(make(),env,{now:1700000000});
+    const second=await handleWebhook(make(),env,{now:1700000000});
+    expect((await first.json()).duplicate).toBe(false);
+    expect((await second.json()).duplicate).toBe(true);
   });
 });

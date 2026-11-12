@@ -10,6 +10,15 @@ function json(body,status=200){
     'referrer-policy':'no-referrer'
   }});
 }
+function withSecurityHeaders(response){
+  const headers=new Headers(response.headers);
+  headers.set('x-content-type-options','nosniff');
+  headers.set('referrer-policy','strict-origin-when-cross-origin');
+  headers.set('x-frame-options','DENY');
+  headers.set('permissions-policy','camera=(), microphone=(), geolocation=()');
+  headers.set('content-security-policy',"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'");
+  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+}
 function canonicalRedirect(request,env){
   const d=domainStatus(env);
   if(!d.canonical_redirect_enabled||!d.ready_for_cutover||!['GET','HEAD'].includes(request.method))return null;
@@ -43,6 +52,6 @@ export default {
     const redirect=canonicalRedirect(request,env);
     if(redirect)return redirect;
     if(!env.ASSETS)return json({error:'assets_binding_missing'},503);
-    return env.ASSETS.fetch(request);
+    return withSecurityHeaders(await env.ASSETS.fetch(request));
   }
 };
