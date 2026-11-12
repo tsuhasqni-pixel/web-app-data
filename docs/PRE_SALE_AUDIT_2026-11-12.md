@@ -111,3 +111,19 @@ The repository still has no committed package-lock.json. Direct dependency versi
 
 This audited code may be merged and deployed with live charging disabled as a SALE_RC.
 It must not be interpreted as authorization to switch on public live billing automatically.
+
+## Owner waiver — 2026-11-12
+
+The owner explicitly approved launching without a real-card production lifecycle E2E because they cannot fund a live test purchase at this time.
+
+Accepted residual risk:
+- No owner-controlled live card charge has been observed end-to-end before launch.
+- TEST/CI/browser E2E, live Stripe object verification, webhook/portal configuration and fail-closed runtime checks are used as launch evidence instead.
+- Any missing live Secret or failed live Stripe verification must continue to block Checkout automatically.
+
+Owner-approved launch flags:
+- DATA_SHAPER_REFUND_POLICY_CONFIRMED=true
+- DATA_SHAPER_LIVE_SALE_APPROVED=true
+- DATA_SHAPER_LIVE_BILLING_ENABLED=true
+
+The published refund/cancellation policy remains: monthly auto-renewal, cancellation at period end, no normal prorated refund for user-initiated mid-period cancellation, with billing errors/duplicate charges/legal requirements handled separately.
