@@ -121,7 +121,8 @@ test('English UI exposes aggregation, accounting reports, tax rules and deprecia
   await expect(page.getByRole('button',{name:'Accounting & Reports · Free / Lite / Pro'})).toBeVisible();
   await page.getByRole('button',{name:'Accounting & Reports · Free / Lite / Pro'}).click();
   await expect(page.getByRole('heading',{name:'Report purpose'})).toBeVisible();
-  await expect(page.getByRole('heading',{name:'Tax rate rules'})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Add tax rule'})).toBeVisible();
-  await expect(page.getByText(/never guesses tax rates from business type/i)).toBeVisible();
+  const purpose=page.locator('section').filter({has:page.getByRole('heading',{name:'Report purpose'})}).locator('select');
+  await purpose.selectOption('corporate');
+  await expect(page.getByRole('heading',{name:'Tax calculation helper · Pro'})).toBeVisible();
+  await expect(page.getByText(/tax calculations by business, tax category, and effective period are Pro features/i)).toBeVisible();
 });
