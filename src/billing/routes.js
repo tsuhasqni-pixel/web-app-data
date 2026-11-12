@@ -223,7 +223,6 @@ async function finishWebhookEvent(env,eventId,error=null){
 export async function handleWebhook(request,env,deps={}){
   const c=billingConfig(env);
   if(!c.webhookConfigured||!env?.DB?.prepare)return json({error:'webhook_not_configured'},503);
-  try{await ensureCommercialTables(env)}catch{return json({error:'commercial_schema_unavailable'},503)}
   const raw=await request.text();
   if(raw.length>1024*1024)return json({error:'payload_too_large'},413);
   const sig=request.headers.get('Stripe-Signature')||'';
@@ -235,6 +234,7 @@ export async function handleWebhook(request,env,deps={}){
     return json({error:'invalid_stripe_event'},400);
   }
   try{
+    await ensureCommercialTables(env);
     const state=await startWebhookEvent(env,event);
     if(state.duplicate)return json({received:true,duplicate:true});
     await applyWebhookEvent(env,event);
