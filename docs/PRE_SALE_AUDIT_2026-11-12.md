@@ -70,8 +70,8 @@ Final executable CI at that head:
 
 Do not set the live gates true until all items are completed:
 
-- Decide Data Shaper's own sales tax treatment and customer-facing total-price behavior.
-  - This is separate from the accounting-data tax helper inside Data Shaper.
+- Customer-facing total-price behavior: **CONFIRMED** — Free ¥0 / Lite ¥480 / Pro ¥980 are customer totals. Stripe Tax automatic add-on is not assumed.
+  - Business-side consumption-tax filing/accounting still depends on the operator's tax status and remains separate from the in-app accounting-data tax helper.
 - Create / verify LIVE Stripe Products and Prices:
   - Lite: JPY 480 / month; metadata app=data-shaper, tier=lite.
   - Pro: JPY 980 / month; metadata app=data-shaper, tier=pro.
