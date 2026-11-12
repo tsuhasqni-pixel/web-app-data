@@ -17,7 +17,7 @@
     "DATA_SHAPER_BILLING_ENABLED": "true",
     "LEGAL_DISCLOSURE_URL": "https://namidata-lab-public.lingering-salad-74bc.workers.dev/legal/disclosure-request",
     "DATA_SHAPER_STRIPE_TEST_PRICE_ID": "price_1UaHXEBGa8rL8jwIIhFKKasw",
-    "DATA_SHAPER_TAX_DISPLAY_CONFIRMED": "false",
+    "DATA_SHAPER_TAX_DISPLAY_CONFIRMED": "true",
     "DATA_SHAPER_LIVE_BILLING_ENABLED": "false",
     "DATA_SHAPER_REFUND_POLICY_CONFIRMED": "false",
     "DATA_SHAPER_LIVE_SALE_APPROVED": "false"
