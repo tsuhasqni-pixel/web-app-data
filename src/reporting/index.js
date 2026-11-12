@@ -74,6 +74,14 @@ export const reportPurposes=[
 ];
 
 export const reportDisclaimer='Data Shaperは会計データの整理・集計を補助するサービスです。税務代理、個別の税務判断、税務書類の作成代行を行うものではありません。申告・提出前に利用者自身で内容を確認し、必要に応じて税理士または所轄機関へ確認してください。';
+export const reportDisclaimerEn='Data Shaper assists with organizing and aggregating accounting data. It does not provide tax representation, individualized tax judgments, or tax-return preparation services. Review all outputs before filing and consult a qualified tax professional or authority when necessary.';
+const purposeEn={
+  corporate:{label:'Company',freeLabel:'Simple reference summary'},
+  sole_blue:{label:'Sole proprietor (blue return)',freeLabel:'Simple business summary'},
+  sole_white:{label:'Sole proprietor (white return)',freeLabel:'Simple business summary'},
+  household:{label:'Household / personal',freeLabel:'Annual household summary'},
+  custom:{label:'Custom',freeLabel:'Simple report'}
+};
 
 export function getReportPurpose(id){
   return reportPurposes.find(x=>x.id===id)||reportPurposes.find(x=>x.id==='household');
@@ -120,24 +128,24 @@ export function buildSimpleReport(records,{categoryField,amountField,flowField='
   };
 }
 
-export function simpleReportToRows(report,purpose){
-  const p=getReportPurpose(purpose);
+export function simpleReportToRows(report,purpose,{language='ja'}={}){
+  const p=getReportPurpose(purpose),en=language==='en',pe=purposeEn[purpose]||purposeEn.household;
   const rows=[
-    ['Data Shaper '+p.freeLabel,''],
-    ['用途',p.label],
-    ['有効データ件数',report?.validRows??0],
-    ['金額合計',report?.total??0]
+    ['Data Shaper '+(en?pe.freeLabel:p.freeLabel),''],
+    [en?'Purpose':'用途',en?pe.label:p.label],
+    [en?'Valid rows':'有効データ件数',report?.validRows??0],
+    [en?'Amount total':'金額合計',report?.total??0]
   ];
   if(report?.cashflow?.available){
-    rows.push(['収入合計',report.cashflow.income]);
-    rows.push(['支出合計',report.cashflow.expense]);
-    rows.push(['収支差額',report.cashflow.net]);
-    rows.push(['収支区分未判定件数',report.cashflow.unknownFlowRows]);
+    rows.push([en?'Income total':'収入合計',report.cashflow.income]);
+    rows.push([en?'Expense total':'支出合計',report.cashflow.expense]);
+    rows.push([en?'Net cash flow':'収支差額',report.cashflow.net]);
+    rows.push([en?'Unclassified flow rows':'収支区分未判定件数',report.cashflow.unknownFlowRows]);
   }
   rows.push(['','']);
-  rows.push(['分類','金額']);
+  rows.push([en?'Category':'分類',en?'Amount':'金額']);
   for(const item of report?.categories||[])rows.push([item.category,item.amount]);
   rows.push(['','']);
-  rows.push(['注意',reportDisclaimer]);
+  rows.push([en?'Notice':'注意',en?reportDisclaimerEn:reportDisclaimer]);
   return rows;
 }
