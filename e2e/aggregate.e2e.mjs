@@ -29,8 +29,8 @@ async function runAggregate(page,filePath){
   await selects.nth(1).selectOption('location_name');
   await selects.nth(2).selectOption('amount');
 
-  await expect(setting.getByRole('columnheader',{name:'sku_name × location_name'})).toBeVisible();
   const table=setting.locator('table').last();
+  await expect(table.locator('th').first()).toHaveText('sku_name × location_name');
   await expect(table).toContainText('商品A');
   await expect(table).toContainText('750');
   await expect(table).toContainText('1050');
@@ -137,11 +137,9 @@ test('paid UI keeps checkout disabled until explicit legal consent',async({page}
     missing:[],pro_missing:[],lite_missing:[]
   })}));
   await page.goto('/');
-  await page.getByRole('button',{name:'決算・レポート · Free / Lite / Pro'}).click();
-  const purposeSection=page.locator('section').filter({has:page.getByRole('heading',{name:'レポートの目的'})});
-  await purposeSection.locator('select').selectOption('corporate');
-  const gate=page.locator('section').filter({has:page.getByRole('heading',{name:'Pro：詳細機能'})});
-  const buy=gate.getByRole('button',{name:'TEST Proを開始（月額 ¥980）'});
+  await page.getByRole('button',{name:'データ整形 · Lite'}).click();
+  const gate=page.locator('section').filter({has:page.getByRole('heading',{name:'Lite：詳細機能'})});
+  const buy=gate.getByRole('button',{name:'TEST Liteを開始（¥480 / 月）'});
   await expect(buy).toBeDisabled();
   const consent=gate.getByRole('checkbox');
   await expect(consent).not.toBeChecked();
