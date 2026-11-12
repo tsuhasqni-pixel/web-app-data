@@ -62,3 +62,23 @@ export function tr(value){
   return s;
 }
 export const languageOptions=()=>[['ja','日本語'],['en','English']];
+
+export function applyTranslations(root=document.body){
+  document.documentElement.lang=current;
+  if(!root||current!=='en')return;
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node;
+  while((node=walker.nextNode())){
+    const parent=node.parentElement;
+    if(!parent||parent.closest('script,style,textarea,pre,td'))continue;
+    const next=tr(node.textContent);
+    if(next!==node.textContent)node.textContent=next;
+  }
+  for(const el of root.querySelectorAll?.('[placeholder],[aria-label],[title]')||[]){
+    for(const attr of ['placeholder','aria-label','title']){
+      if(!el.hasAttribute(attr))continue;
+      const currentValue=el.getAttribute(attr);
+      const next=tr(currentValue);
+      if(next!==currentValue)el.setAttribute(attr,next);
+    }
+  }
+}
