@@ -93,7 +93,7 @@ Launch prices are fixed at **Free ¥0 / Lite ¥480 per month / Pro ¥980 per mon
 - Demand/accounting canonical field names remain stable across languages so Recipes and mappings do not change when the UI language changes.
 
 ## Period-aware tax calculation helper
-This is an accounting/data calculation helper and is **separate from Stripe tax settings for selling Data Shaper itself**.
+This is a **Pro accounting feature** and an accounting/data calculation helper and is **separate from Stripe tax settings for selling Data Shaper itself**.
 
 Users can register tax rules with:
 - business unit (optional scope)
