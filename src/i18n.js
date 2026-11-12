@@ -31,7 +31,23 @@ const EN={
 'Recipe / 再利用':'Recipe / reuse','現在の設定をRecipe保存':'Save current Recipe',
 'Lite：複数シート一括データ整形':'Lite: batch data shaping','Pro：詳細機能':'Pro: advanced features','Lite：詳細機能':'Lite: advanced features',
 '法人決算・申告準備レポート':'Company accounting / filing-preparation report','青色申告決算書 入力準備レポート':'Blue-return statement input-preparation report','収支内訳書 入力準備レポート':'Income/expense statement input-preparation report','年間家計サマリー':'Annual household summary','詳細家計レポート':'Detailed household report','簡易レポート':'Simple report','独自テンプレートレポート':'Custom template report',
-'日付':'Date','摘要':'Description','費目':'Category','収支区分':'Flow type','収入':'Income','支出':'Expense','売上':'Sales','通信費':'Communications','旅費交通費':'Travel & transport','消耗品費':'Supplies','水道光熱費':'Utilities','給与':'Salary','食費':'Food','住居費':'Housing','分類':'Category','メモ':'Memo','商品A':'Product A','商品B':'Product B'
+'日付':'Date','摘要':'Description','費目':'Category','収支区分':'Flow type','収入':'Income','支出':'Expense','売上':'Sales','通信費':'Communications','旅費交通費':'Travel & transport','消耗品費':'Supplies','水道光熱費':'Utilities','給与':'Salary','食費':'Food','住居費':'Housing','分類':'Category','メモ':'Memo','商品A':'Product A','商品B':'Product B',
+'軽量集計はFree、データ整形はLite、決算・勘定科目対応はProとしてLocal Firstで処理します。':'Light aggregation is Free, data shaping is Lite, and accounting / account mapping is Pro. Processing stays Local First.',
+'価格本体は Free ¥0 / Lite 月額¥480 / Pro 月額¥980 で固定します。税の扱いと最終支払額表示は販売開始前に事業者判断で確定し、Stripe TESTでは接続済みのTierだけ購入ボタンを有効化します。':'Nominal prices are fixed at Free ¥0 / Lite ¥480 per month / Pro ¥980 per month. Tax treatment and final customer-facing totals remain owner-confirmed launch settings.',
+'縦軸と横軸を指定して、その交点ごとに数値を合計するクロス集計です。横軸を使わない1方向集計もできます。':'Choose vertical and horizontal axes to sum values at each intersection. You can also run a one-axis aggregation.',
+'法人・個人事業・家計を同じ入口から整理します。Freeは簡易サマリー、Liteは家計・自由形式の詳細レポート、Proは法人・個人事業の決算・申告準備を扱います。':'Use one report workspace for companies, sole proprietors, and households. Free provides summaries, Lite provides detailed household/custom reports, and Pro provides accounting preparation.',
+'税率はData Shaperが業種から推測せず、登録されたルールだけを使用します。事業区分・税区分・適用期間・税率を設定してください。同じ条件で適用期間が重複すると計算を停止します。':'Data Shaper never guesses tax rates from business type. It uses only rules you register. Set business, tax category, effective period, and rate. Overlapping periods for the same scope stop the calculation.',
+'税務申告の判定ではなく計算補助です。税率・課税区分・適用期間は利用者自身で確認してください。':'This is a calculation aid, not a tax-filing determination. Confirm tax rates, categories, and effective periods yourself or with a qualified professional.',
+'税率ルールはまだ登録されていません。必要な場合だけ追加してください。':'No tax rules are registered yet. Add rules only when needed.',
+'税率ルールの期間重複・入力形式チェック：OK':'Tax-rule period and format validation: OK',
+'取引日列と金額列を選択してください。':'Select the transaction-date and amount fields.',
+'税務上の法定償却率・保証率・改定償却率をData Shaperが自動決定する機能ではありません。定率法は確認済みの年率を入力して参考計算します。':'Data Shaper does not determine statutory depreciation rates, guarantee rates, or revised rates. For declining balance, enter a rate you have already confirmed and use the result as a calculation aid.',
+'社内確認や法人税申告準備のために、勘定科目・残高・貸借一致を整理します。公式申告書そのものを自動作成する機能ではありません。':'Organize accounts, balances, and balance checks for internal review and filing preparation. This does not automatically create an official tax return.',
+'売上・経費・資産負債を整理し、本人または専門家が公式様式へ確認・転記しやすくする準備資料です。':'Organize sales, expenses, assets, and liabilities into preparation material for review or transfer into official forms.',
+'収入・必要経費の集計を整理する準備資料です。税務上の適否を自動判断せず、最終確認は利用者側で行います。':'Prepare income and expense summaries without automatically deciding tax treatment. Final review remains with the user.',
+'提出義務を前提としない個人管理用レポートです。月別・費目別の収支や資産推移の確認に使います。':'A personal-management report with no filing assumption. Use it to review monthly/category cash flow and asset changes.',
+'用途が決まっていない場合の汎用レポートです。分類項目と金額項目を選び、必要な指標を自分で組み立てます。':'A general-purpose report for custom use. Choose category and amount fields to build the metrics you need.',
+'Data Shaperは会計データの整理・集計を補助するサービスです。税務代理、個別の税務判断、税務書類の作成代行を行うものではありません。申告・提出前に利用者自身で内容を確認し、必要に応じて税理士または所轄機関へ確認してください。':'Data Shaper assists with organizing and aggregating accounting data. It does not provide tax representation, individualized tax judgments, or tax-return preparation services. Review all outputs before filing and consult a qualified tax professional or authority when necessary.'
 };
 let current='ja';
 export function initLanguage(){
