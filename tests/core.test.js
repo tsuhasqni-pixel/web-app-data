@@ -10,6 +10,8 @@ import {cleanWorkbook,BATCH_LIMITS} from '../src/batch/index.js';
 import {validate} from '../src/validator/index.js';
 import {exportCSV} from '../src/exporter/index.js';
 import {objectRowsToRows,openPrintReport} from '../src/exporter/report.js';
+import {validateTaxRules,resolveTaxRule,calculateTaxAmount,applyTaxRules} from '../src/tax/index.js';
+import {buildDepreciationSchedule} from '../src/depreciation/index.js';
 import {reportPurposes,buildSimpleReport,simpleReportToRows} from '../src/reporting/index.js';
 import {scenarios} from './fixtures/scenarios.js';
 
