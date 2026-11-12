@@ -45,6 +45,7 @@ export function billingConfig(env={}){
     webhookConfigured:isWebhookSecret(webhookSecret),
     portalConfigured:isPortalConfig(portalConfigId),
     originConfigured:!!origin,
+    liveOriginConfigured:!!origin&&origin.startsWith('https://'),
     taxDisplayConfirmed:env.DATA_SHAPER_TAX_DISPLAY_CONFIRMED==='true',
     refundPolicyConfirmed:env.DATA_SHAPER_REFUND_POLICY_CONFIRMED==='true',
     liveSaleApproved:env.DATA_SHAPER_LIVE_SALE_APPROVED==='true'
@@ -58,6 +59,7 @@ export function billingMissing(env={},tier='pro'){
   if(tier==='pro'&&!c.proPriceConfigured)missing.push(c.live?'DATA_SHAPER_STRIPE_LIVE_PRO_PRICE_ID':'DATA_SHAPER_STRIPE_TEST_PRICE_ID');
   if(!c.webhookConfigured)missing.push(c.live?'DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET':'DATA_SHAPER_STRIPE_WEBHOOK_SECRET');
   if(!c.originConfigured)missing.push('APP_ORIGIN');
+  if(c.live&&!c.liveOriginConfigured)missing.push('APP_ORIGIN_LIVE_HTTPS');
   if(!env?.DB?.prepare)missing.push('DB');
   if(c.live){
     if(!c.portalConfigured)missing.push('DATA_SHAPER_STRIPE_LIVE_PORTAL_CONFIG_ID');
