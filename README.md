@@ -84,3 +84,40 @@ Launch prices are fixed at **Free ¥0 / Lite ¥480 per month / Pro ¥980 per mon
 - Japanese PDF print/save report renderer: PASS
 - PDF popup handling bug found by E2E and fixed before merge
 - These Playwright checks now run in normal GitHub CI before build/deploy dry-run.
+
+
+## Language support
+- The application UI can switch between **日本語 / English**.
+- CSV/XLSX input values and user-defined account names are never machine-translated.
+- Generated Free/Lite report labels follow the selected UI language.
+- Demand/accounting canonical field names remain stable across languages so Recipes and mappings do not change when the UI language changes.
+
+## Period-aware tax calculation helper
+This is an accounting/data calculation helper and is **separate from Stripe tax settings for selling Data Shaper itself**.
+
+Users can register tax rules with:
+- business unit (optional scope)
+- tax category (optional scope)
+- effective-from / effective-to dates
+- percentage rate
+
+Safety rules:
+- Data Shaper never infers a tax rate from industry or business type.
+- Exact rule periods for the same business + tax category may not overlap.
+- A more specific business/category rule can override a broader rule deterministically.
+- Transactions with no applicable rule remain no_rule; no default rate is silently inserted.
+- Invalid dates and ambiguous rules remain uncalculated.
+- Amount basis (tax-exclusive / tax-inclusive) and rounding (floor / round / ceil) are explicit user settings.
+- Input columns business_unit and tax_category are first-class mappings.
+
+Tax rules are saved in Recipe schema v6.
+
+## Depreciation helper
+The Pro accounting workspace includes a conservative calculation helper for:
+- straight-line depreciation
+- declining-balance depreciation with a **user-confirmed annual rate**
+- acquisition cost
+- residual value
+- useful life
+
+It does **not** automatically determine Japanese statutory useful life, statutory declining rates, guarantee rates, revised rates, or partial-year proration. It is a calculation aid rather than tax-return automation.
