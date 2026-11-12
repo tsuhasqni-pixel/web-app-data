@@ -11,10 +11,10 @@
 <p>OAuth callbackで受け取るID Tokenは署名・issuer・audience・有効期限・nonceの検証にのみ使用し、永続保存しません。Google access tokenやrefresh tokenもData Shaperのログインsessionとして保存しません。</p>
 <p>ログイン後はData Shaper独自の署名session cookieを使用します。cookieはHttpOnly、Secure、SameSite=Lax、Path=/で設定し、内部user_idをsessionの主キーとして使用します。</p>
 <h2>Stripeとの役割分離</h2>
-<p>Googleログインは本人認証だけを担当します。Pro権限はStripeのData Shaper専用Customer / Subscription / Product / Priceの状態を別途確認して決定します。Googleログイン成功だけでPro権限を付与しません。</p>
+<p>Googleログインは本人認証だけを担当します。Lite / Pro権限はStripeのData Shaper専用Customer / Subscription / Product / Priceの状態を別途確認して決定します。Googleログイン成功だけで有料権限を付与しません。決済カード番号そのものはData Shaperでは保存しません。</p>
 <h2>ファイルデータ</h2>
 <p>CSV/XLSX原データ、変換前後データ、Recipe作成時の作業データは、Local First方針のもと原則ブラウザ内で処理します。認証機能の導入を理由に原データを認証サーバーへ送信しません。</p>
 <h2>お問い合わせ・情報開示</h2>
 <p><a href="https://namidata-lab-public.lingering-salad-74bc.workers.dev/legal/disclosure-request" rel="noreferrer">運営者情報・情報開示窓口</a></p>
-<p><a href="/">Data Shaperへ戻る</a> / <a href="/legal/terms/">利用規約</a></p>
+<p><a href="/">Data Shaperへ戻る</a> / <a href="/legal/terms/">利用規約</a> / <a href="/legal/billing/">課金・解約条件</a> / <a href="/legal/commerce/">販売条件</a></p>
 </body></html>
