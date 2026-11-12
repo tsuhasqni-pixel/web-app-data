@@ -48,6 +48,7 @@ export function cloneTemplate(template){
 
 export function parseStatementTemplateRows(rows){
   if(!Array.isArray(rows)||!rows.length)throw new Error('テンプレートに行がありません');
+  if(rows.length>1001)throw new Error('決算書テンプレートは1000科目までです');
   const header=(rows[0]||[]).map(norm);
   const find=(...names)=>header.findIndex(h=>names.map(norm).includes(h));
   const sectionIdx=find('section','区分','表示区分');
