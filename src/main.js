@@ -25,7 +25,7 @@ let profile='demand',orientation='auto',wideValueField='demand_qty';
 let options={trim:true,width:true,dates:true};
 let aggregateConfig={rowField:'',columnField:'',valueField:'amount'};
 let reportConfig={purpose:'household',categoryField:'',amountField:'',flowField:''};
-let taxConfig={dateField:'date',businessField:'',categoryField:'category',amountField:'amount',basis:'exclusive',rounding:'floor',rules:[]};
+let taxConfig={dateField:'date',businessField:'business_unit',categoryField:'tax_category',amountField:'amount',basis:'exclusive',rounding:'floor',rules:[]};
 let depreciationConfig={cost:'',residual:'0',lifeYears:'',method:'straight_line',decliningRate:'',result:null};
 let bsConfig={accountField:'account_name',amountField:'amount',debitField:'debit',creditField:'credit',overrides:{}};
 let statementTemplate=createDefaultStatementTemplate();
@@ -528,12 +528,12 @@ function renderTaxSettings(parent){
  if(!taxConfig.rules.length)el('p','税率ルールはまだ登録されていません。必要な場合だけ追加してください。',s,'status');
  taxConfig.rules.forEach((rule,index)=>{
    const row=el('div',undefined,s,'tax-rule-row');
-   const label=el('input',undefined,row);label.placeholder=tr('税率ルール')+' '+(index+1);label.value=rule.label||'';label.addEventListener('change',()=>{rule.label=label.value.trim();});
-   const business=el('input',undefined,row);business.placeholder=tr('事業区分');business.value=rule.business||'';business.addEventListener('change',()=>{rule.business=business.value.trim();});
-   const category=el('input',undefined,row);category.placeholder=tr('税区分');category.value=rule.category||'';category.addEventListener('change',()=>{rule.category=category.value.trim();});
-   const from=el('input',undefined,row);from.type='date';from.value=rule.from||'';from.title=tr('適用開始');from.addEventListener('change',()=>{rule.from=from.value;});
-   const to=el('input',undefined,row);to.type='date';to.value=rule.to||'';to.title=tr('適用終了');to.addEventListener('change',()=>{rule.to=to.value;});
-   const rate=el('input',undefined,row);rate.type='number';rate.min='0';rate.max='100';rate.step='0.01';rate.placeholder=tr('税率 (%)');rate.value=rule.rate??'';rate.addEventListener('change',()=>{rule.rate=rate.value;});
+   const label=el('input',undefined,row);label.placeholder=tr('税率ルール')+' '+(index+1);label.value=rule.label||'';label.addEventListener('change',()=>{rule.label=label.value.trim();render();});
+   const business=el('input',undefined,row);business.placeholder=tr('事業区分');business.value=rule.business||'';business.addEventListener('change',()=>{rule.business=business.value.trim();render();});
+   const category=el('input',undefined,row);category.placeholder=tr('税区分');category.value=rule.category||'';category.addEventListener('change',()=>{rule.category=category.value.trim();render();});
+   const from=el('input',undefined,row);from.type='date';from.value=rule.from||'';from.title=tr('適用開始');from.addEventListener('change',()=>{rule.from=from.value;render();});
+   const to=el('input',undefined,row);to.type='date';to.value=rule.to||'';to.title=tr('適用終了');to.addEventListener('change',()=>{rule.to=to.value;render();});
+   const rate=el('input',undefined,row);rate.type='number';rate.min='0';rate.max='100';rate.step='0.01';rate.placeholder=tr('税率 (%)');rate.value=rule.rate??'';rate.addEventListener('change',()=>{rule.rate=rate.value;render();});
    button('税率ルールを削除',()=>removeTaxRule(rule.id),row,'secondary-button');
  });
  button('税率ルールを追加',addTaxRule,s);
