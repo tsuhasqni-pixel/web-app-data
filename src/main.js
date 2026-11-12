@@ -13,6 +13,9 @@ import {objectRowsToRows,openPrintReport} from './exporter/report.js';
 import {saveXlsx} from './exporter/xlsx.js';
 import {buildRecipe,validateRecipe} from './recipe/index.js';
 import {reportPurposes,getReportPurpose,buildSimpleReport,simpleReportToRows,reportDisclaimer} from './reporting/index.js';
+import {initLanguage,language,setLanguage,tr,languageOptions,applyTranslations} from './i18n.js';
+import {validateTaxRules,applyTaxRules} from './tax/index.js';
+import {buildDepreciationSchedule} from './depreciation/index.js';
 import './style.css';
 
 const app=document.querySelector('#app');
@@ -22,6 +25,8 @@ let profile='demand',orientation='auto',wideValueField='demand_qty';
 let options={trim:true,width:true,dates:true};
 let aggregateConfig={rowField:'',columnField:'',valueField:'amount'};
 let reportConfig={purpose:'household',categoryField:'',amountField:'',flowField:''};
+let taxConfig={dateField:'date',businessField:'',categoryField:'category',amountField:'amount',basis:'exclusive',rounding:'floor',rules:[]};
+let depreciationConfig={cost:'',residual:'0',lifeYears:'',method:'straight_line',decliningRate:'',result:null};
 let bsConfig={accountField:'account_name',amountField:'amount',debitField:'debit',creditField:'credit',overrides:{}};
 let statementTemplate=createDefaultStatementTemplate();
 let templateMappings={};
@@ -32,7 +37,7 @@ let authState={loaded:false,loading:false,authenticated:false,user:null,entitlem
 let billingState={loaded:false,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,mode:'test',missing:[],proMissing:[],liteMissing:[]};
 
 function el(tag,text,parent,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;(parent||app).appendChild(e);return e;}
-function button(text,onClick,parent,cls){const b=el('button',text,parent,cls);b.type='button';b.addEventListener('click',onClick);return b;}
+function button(text,onClick,parent,cls){const b=el('button',tr(text),parent,cls);b.type='button';b.addEventListener('click',onClick);return b;}
 async function refreshAuth(){
  if(authState.loading)return;
  authState={...authState,loading:true};
@@ -152,8 +157,13 @@ function renderProLocked(){
     }
  }
 }
-function select(values,value,onChange,parent){const e=el('select',undefined,parent);for(const [v,t] of values){const o=el('option',t,e);o.value=v;}e.value=value;e.addEventListener('change',()=>onChange(e.value));return e;}
-function section(title,parent=app){const s=el('section',undefined,parent);el('h2',title,s);return s;}
+function select(values,value,onChange,parent){const e=el('select',undefined,parent);for(const [v,t] of values){const o=el('option',tr(t),e);o.value=v;}e.value=value;e.addEventListener('change',()=>onChange(e.value));return e;}
+function section(title,parent=app){const s=el('section',undefined,parent);el('h2',tr(title),s);return s;}
+function renderLanguageControl(){
+ const bar=el('div',undefined,app,'language-control');
+ el('span',language()==='en'?'Language':'言語',bar);
+ select(languageOptions(),language(),v=>{setLanguage(v);render();},bar);
+}
 function renderOutputChoice(parent,{title,filenameBase,rows,note='' }){
  const box=el('div',undefined,parent,'export-choice');
  el('span','出力形式: ',box);
@@ -506,6 +516,70 @@ function ensureReportConfig(){
  return {available,numeric};
 }
 
+function addTaxRule(){
+ taxConfig.rules=[...taxConfig.rules,{id:crypto.randomUUID(),label:'',business:'',category:'',from:'',to:'',rate:''}];
+ render();
+}
+function removeTaxRule(id){taxConfig.rules=taxConfig.rules.filter(r=>r.id!==id);render();}
+function renderTaxSettings(parent){
+ const s=section('税率設定',parent);
+ el('p','税率はData Shaperが業種から推測せず、登録されたルールだけを使用します。事業区分・税区分・適用期間・税率を設定してください。同じ条件で適用期間が重複すると計算を停止します。',s,'status');
+ el('p','税務申告の判定ではなく計算補助です。税率・課税区分・適用期間は利用者自身で確認してください。',s,'legal-note');
+ if(!taxConfig.rules.length)el('p','税率ルールはまだ登録されていません。必要な場合だけ追加してください。',s,'status');
+ taxConfig.rules.forEach((rule,index)=>{
+   const row=el('div',undefined,s,'tax-rule-row');
+   const label=el('input',undefined,row);label.placeholder=tr('税率ルール')+' '+(index+1);label.value=rule.label||'';label.addEventListener('change',()=>{rule.label=label.value.trim();});
+   const business=el('input',undefined,row);business.placeholder=tr('事業区分');business.value=rule.business||'';business.addEventListener('change',()=>{rule.business=business.value.trim();});
+   const category=el('input',undefined,row);category.placeholder=tr('税区分');category.value=rule.category||'';category.addEventListener('change',()=>{rule.category=category.value.trim();});
+   const from=el('input',undefined,row);from.type='date';from.value=rule.from||'';from.title=tr('適用開始');from.addEventListener('change',()=>{rule.from=from.value;});
+   const to=el('input',undefined,row);to.type='date';to.value=rule.to||'';to.title=tr('適用終了');to.addEventListener('change',()=>{rule.to=to.value;});
+   const rate=el('input',undefined,row);rate.type='number';rate.min='0';rate.max='100';rate.step='0.01';rate.placeholder=tr('税率 (%)');rate.value=rule.rate??'';rate.addEventListener('change',()=>{rule.rate=rate.value;});
+   button('税率ルールを削除',()=>removeTaxRule(rule.id),row,'secondary-button');
+ });
+ button('税率ルールを追加',addTaxRule,s);
+ try{validateTaxRules(taxConfig.rules);if(taxConfig.rules.length)el('p','税率ルールの期間重複・入力形式チェック：OK',s,'status');}
+ catch(e){el('p','税率ルールエラー: '+e.message,s,'error');}
+ if(!result||!taxConfig.rules.length)return;
+ const available=recordFields(),numeric=numericRecordFields();
+ el('span','取引日列: ',s);select([['','選択してください'],...available.map(x=>[x,x])],taxConfig.dateField,v=>{taxConfig.dateField=v;render();},s);
+ el('span','事業区分列（任意）: ',s);select([['','なし'],...available.map(x=>[x,x])],taxConfig.businessField,v=>{taxConfig.businessField=v;render();},s);
+ el('span','税区分列（任意）: ',s);select([['','なし'],...available.map(x=>[x,x])],taxConfig.categoryField,v=>{taxConfig.categoryField=v;render();},s);
+ el('span','税計算対象金額列: ',s);select(numeric.map(x=>[x,x]),taxConfig.amountField,v=>{taxConfig.amountField=v;render();},s);
+ el('span','金額の扱い: ',s);select([['exclusive','税抜金額'],['inclusive','税込金額']],taxConfig.basis,v=>{taxConfig.basis=v;render();},s);
+ el('span','端数処理: ',s);select([['floor','切り捨て'],['round','四捨五入'],['ceil','切り上げ']],taxConfig.rounding,v=>{taxConfig.rounding=v;render();},s);
+ if(!taxConfig.dateField||!taxConfig.amountField)return el('p','取引日列と金額列を選択してください。',s,'warning');
+ try{
+   const out=applyTaxRules(result.records,taxConfig);
+   el('p','適用 '+out.matched+' 件 / ルールなし '+out.unmatched+' 件 / 日付不正 '+out.invalidDate+' 件 / 曖昧 '+out.ambiguous+' 件',s,(out.unmatched||out.invalidDate||out.ambiguous)?'warning':'status');
+   const preview=out.rows.slice(0,100).map(row=>({
+     [taxConfig.dateField]:row[taxConfig.dateField],
+     [taxConfig.businessField||'business']:taxConfig.businessField?row[taxConfig.businessField]:'',
+     [taxConfig.categoryField||'category']:taxConfig.categoryField?row[taxConfig.categoryField]:'',
+     [taxConfig.amountField]:row[taxConfig.amountField],
+     tax_rate:row.tax_rate,tax_amount:row.tax_amount,amount_ex_tax:row.amount_ex_tax,amount_in_tax:row.amount_in_tax,tax_rule:row.tax_rule,tax_status:row.tax_status
+   }));
+   el('h3',tr('税率計算プレビュー'),s);renderTable(s,preview,100);
+   renderOutputChoice(s,{title:'Data Shaper Tax Calculation Helper',filenameBase:'data-shaper-tax-helper',rows:objectRowsToRows(out.rows),note:reportDisclaimer});
+ }catch(e){el('p','税率計算を停止しました: '+e.message,s,'error');}
+}
+function renderDepreciationHelper(parent){
+ const s=section('減価償却計算補助',parent);
+ el('p','税務上の法定償却率・保証率・改定償却率をData Shaperが自動決定する機能ではありません。定率法は確認済みの年率を入力して参考計算します。',s,'legal-note');
+ const grid=el('div',undefined,s,'depreciation-grid');
+ const addNumber=(label,key,min='0')=>{const box=el('label',undefined,grid);el('span',label,box);const i=el('input',undefined,box);i.type='number';i.min=min;i.step='0.01';i.value=depreciationConfig[key]??'';i.addEventListener('change',()=>{depreciationConfig[key]=i.value;depreciationConfig.result=null;});return i;};
+ addNumber(tr('取得価額'),'cost');
+ addNumber(tr('残存価額'),'residual');
+ addNumber(tr('耐用年数（年）'),'lifeYears','1');
+ const methodBox=el('label',undefined,grid);el('span',tr('計算方法'),methodBox);select([['straight_line','定額法'],['declining_custom','定率法（率を指定）']],depreciationConfig.method,v=>{depreciationConfig.method=v;depreciationConfig.result=null;render();},methodBox);
+ if(depreciationConfig.method==='declining_custom')addNumber(tr('定率法の年率 (%)'),'decliningRate','0.01');
+ button('計算',()=>{try{depreciationConfig.result=buildDepreciationSchedule(depreciationConfig);render();}catch(e){alert('減価償却計算: '+e.message);}},s);
+ if(depreciationConfig.result){
+   const rows=depreciationConfig.result.rows.map(x=>({[tr('年')]:x.year,[tr('期首簿価')]:x.opening_book_value,[tr('減価償却費')]:x.depreciation,[tr('期末簿価')]:x.closing_book_value}));
+   renderTable(s,rows,100);
+   renderOutputChoice(s,{title:'Data Shaper Depreciation Helper',filenameBase:'data-shaper-depreciation-helper',rows:objectRowsToRows(rows),note:reportDisclaimer});
+ }
+}
+
 function renderInlinePaidGate(parent,requiredTier){
  const isPro=requiredTier==='pro';
  const label=isPro?'Pro':'Lite';
@@ -569,6 +643,7 @@ function renderBalance(){
  el('p',purpose.description,purposeSection,'status');
  renderReportPurposeGuide(wrap,purpose);
  el('p',reportDisclaimer,wrap,'legal-note');
+ renderTaxSettings(wrap);
 
  if(!renderUpload(wrap))return;
  renderMappingWorkspace(wrap);renderPreview(wrap);
@@ -626,6 +701,7 @@ function renderBalance(){
        renderAccountMapping(wrap,agg);
        renderStatementPreview(wrap,agg,purpose);
      }
+     renderDepreciationHelper(wrap);
    }else if(purpose.id==='sole_white'){
      const note=section('Pro：白色申告向け整理',wrap);
      el('p','収入・費目別の詳細集計を入力準備資料として出します。税務上の必要経費該当性や申告書の完成判断は行いません。',note,'status');
@@ -639,7 +715,7 @@ function renderRecipe(){
  if(!sheets.length||workspaceTab==='free')return;
  const s=section('Recipe / 再利用');
  button('現在の設定をRecipe保存',()=>{
-   const out=buildRecipe({sheets,analysis,options,profile,orientation,wideValueField,aggregateConfig,reportConfig,bsConfig,batchOptions,statementTemplate,templateMappings,statementConfig});
+   const out=buildRecipe({sheets,analysis,options,profile,orientation,wideValueField,aggregateConfig,reportConfig,taxConfig,bsConfig,batchOptions,statementTemplate,templateMappings,statementConfig});
    saveText('data-shaper-recipe.json',JSON.stringify(out,null,2),'application/json');
  },s);
  const input=el('input',undefined,s);input.type='file';input.accept='.json';input.setAttribute('aria-label','Recipe JSONを読み込む');
@@ -658,6 +734,7 @@ function renderRecipe(){
      wideValueField=recipe.wideValueField||wideValueField;
      aggregateConfig={...aggregateConfig,...(recipe.aggregateConfig||{})};
      reportConfig={...reportConfig,...(recipe.reportConfig||{})};
+     taxConfig={...taxConfig,...(recipe.taxConfig||{}),rules:Array.isArray(recipe.taxConfig?.rules)?recipe.taxConfig.rules:taxConfig.rules};
      bsConfig={...bsConfig,...(recipe.bsConfig||{}),overrides:{...(recipe.bsConfig?.overrides||recipe.bsConfig?.assignments||{})}};
      batchOptions={...batchOptions,...(recipe.batchOptions||{})};
      if(Array.isArray(recipe.statementTemplate)&&recipe.statementTemplate.length)statementTemplate=recipe.statementTemplate.map(x=>({...x,aliases:[...(x.aliases||[])]}));
@@ -669,7 +746,7 @@ function renderRecipe(){
 }
 
 function render(){
- app.replaceChildren();el('h1','Data Shaper',app);el('p','軽量集計はFree、データ整形はLite、決算・勘定科目対応はProとしてLocal Firstで処理します。',app,'subtitle');renderAuthBar();renderPlanOverview();renderTabs();
+ app.replaceChildren();el('h1','Data Shaper',app);renderLanguageControl();el('p','軽量集計はFree、データ整形はLite、決算・勘定科目対応はProとしてLocal Firstで処理します。',app,'subtitle');renderAuthBar();renderPlanOverview();renderTabs();
  if(workspaceTab==='free')renderFree();
  if(workspaceTab==='pro')(liteAuthorized()?renderPro():renderInlinePaidGate(app,'lite'));
  if(workspaceTab==='aggregate')renderAggregate();
@@ -681,7 +758,9 @@ function render(){
  const disclosure=el('a','運営者情報・情報開示',footer);
  disclosure.href='/api/legal/disclosure';
  disclosure.rel='noreferrer';
+ applyTranslations(app);
 }
+initLanguage();
 render();
 refreshAuth();
 refreshBilling();
