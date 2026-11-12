@@ -6,7 +6,7 @@ const EN={
 'データ整形、全分類の汎用レポート、Recipe再利用。':'Data shaping, full general-purpose reports, and reusable Recipes.',
 'Liteの全機能＋法人・個人事業の決算/申告準備、勘定科目テンプレート、貸借一致確認。':'Everything in Lite plus accounting preparation, account templates, and balance checks for companies and sole proprietors.',
 '無料診断 · Free':'Diagnostics · Free','集計 · Free':'Aggregation · Free','決算・レポート · Free / Lite / Pro':'Accounting & Reports · Free / Lite / Pro','データ整形 · Lite':'Data Shaping · Lite',
-'ファイル':'File','シート: ':'Sheet: ','UTF-8 CSV / TSV、XLSXをブラウザ内で処理します。最大15 MB。':'CSV / TSV / XLSX are processed locally in your browser. Maximum 15 MB.',
+'ファイル':'File','ファイルを選択':'Choose file','ファイルが選択されていません':'No file selected','データファイルを選択':'Choose data file','決算書テンプレートを読み込む':'Choose statement template','Recipe JSONを読み込む':'Choose Recipe JSON','シート: ':'Sheet: ','UTF-8 CSV / TSV、XLSXをブラウザ内で処理します。最大15 MB。':'CSV / TSV / XLSX are processed locally in your browser. Maximum 15 MB.',
 '無料データ整形診断':'Free data-shaping diagnosis','データ行':'Data rows','列':'Columns','空欄':'Blanks','前後空白':'Outer whitespace','全角/半角候補':'Width-normalization candidates','完全重複候補':'Exact duplicate candidates',
 '列型の推定':'Column type inference','データ整形工程プレビュー':'Data-shaping preview','前後空白を除去':'Trim outer whitespace','全角/半角を統一':'Normalize character width','完全重複行を削除（要確認）':'Remove exact duplicate rows (review required)',
 '選択シートを一括データ整形':'Shape selected sheets','シート別CSV＋レポートをZIPで出力':'Export per-sheet CSV + report ZIP',
@@ -21,7 +21,13 @@ const EN={
 'レポートの目的':'Report purpose','Free / Lite / Pro':'Free / Lite / Pro','使い方ガイド / サンプル':'Usage guide / sample','入力例':'Sample input','この入力例をサンプルCSVで保存':'Save sample as CSV',
 '分類に使う項目: ':'Category field: ','金額項目: ':'Amount field: ','収支区分（任意）: ':'Income/expense field (optional): ','使わない':'Do not use',
 '出力形式: ':'Output format: ','CSV（Excelで開く）':'CSV (opens in Excel)','この形式で出力':'Export in this format',
-'法人':'Company','個人事業主（青色）':'Sole proprietor (blue return)','個人事業主（白色）':'Sole proprietor (white return)','家計・個人管理':'Household / personal','自由形式':'Custom',
+'法人':'Company','法人・会社':'Company','個人事業主（青色）':'Self-employed / Freelancer','個人事業主（白色）':'Self-employed / Freelancer','個人事業・フリーランス':'Self-employed / Freelancer','家計・個人管理':'Household / personal','自由形式':'Custom',
+'会社向け財務・会計整理レポート':'Company financial & accounting report','事業収支・会計整理レポート':'Business income & expense / accounting report',
+'会社の社内確認・会計整理のために、勘定科目・残高・貸借一致を整理します。特定の国の公式申告書を自動作成する機能ではありません。':'Organize accounts, balances, and balance checks for company reporting and internal review. It does not automatically create an official tax form for any country.',
+'個人事業・フリーランスの売上、経費、資産・負債を整理する汎用レポートです。特定の国の申告様式への自動転記や税務判断は行いません。':'A general report for self-employed people and freelancers to organize revenue, expenses, assets, and liabilities. It does not auto-fill a country-specific tax form or make tax judgments.',
+'勘定科目':'Account','金額または残高':'Amount or balance','借方':'Debit','貸方':'Credit','日付または期間':'Date or period','費目または勘定科目':'Category or account','口座（任意）':'Account (optional)','分類項目':'Category field','日付（任意）':'Date (optional)','メモ（任意）':'Memo (optional)',
+'現金及び預金':'Cash and deposits','買掛金':'Accounts payable','資本金':'Capital','資産科目の集約例':'Asset account example','負債科目の例':'Liability account example','純資産科目の例':'Equity account example',
+
 '決算書テンプレート（集計先）':'Statement template (aggregation target)','現在のテンプレートをCSV保存':'Save current template as CSV','順':'Order','区分':'Section','勘定科目':'Account','別名（|区切り）':'Aliases (| separated)','残高側':'Normal balance','操作':'Actions','借方':'Debit','貸方':'Credit','削除':'Delete','勘定科目を追加':'Add account',
 '入力試算表の列':'Trial-balance columns','選択してください':'Select','勘定科目列: ':'Account field: ','残高列: ':'Balance field: ','借方・貸方から計算':'Calculate from debit / credit','借方列: ':'Debit field: ','貸方列: ':'Credit field: ','なし':'None',
 '入力科目 → テンプレート科目':'Source account → template account','未対応':'Unmapped',
@@ -49,6 +55,13 @@ const EN={
 '収入・必要経費の集計を整理する準備資料です。税務上の適否を自動判断せず、最終確認は利用者側で行います。':'Prepare income and expense summaries without automatically deciding tax treatment. Final review remains with the user.',
 '提出義務を前提としない個人管理用レポートです。月別・費目別の収支や資産推移の確認に使います。':'A personal-management report with no filing assumption. Use it to review monthly/category cash flow and asset changes.',
 '用途が決まっていない場合の汎用レポートです。分類項目と金額項目を選び、必要な指標を自分で組み立てます。':'A general-purpose report for custom use. Choose category and amount fields to build the metrics you need.',
+'前年データや既存テンプレートがなくても開始できます。架空の前年値は補完せず、まず下記のような列を用意すると集計しやすくなります。':'You can start without prior-year data or an existing template. Data Shaper never fabricates prior-year values; start with columns like the examples below.',
+'サンプル値は使い方説明用であり、利用者の実績値・税務判断・推奨値ではありません。':'Sample values are for usage guidance only. They are not your actual results, tax judgments, or recommendations.',
+'入力例':'Sample input','この入力例をサンプルCSVで保存':'Save this sample as CSV',
+'売上':'Sales','通信費':'Communications','旅費交通費':'Travel & transport','収入':'Income','支出':'Expense',
+'給与':'Salary','食費':'Food','住居費':'Housing',
+'分類別合計の例':'Category-total example','同じ分類へ加算':'Adds to the same category','別分類の例':'Different-category example',
+'英語表示は米国税制を意味しません。税務制度・提出様式は言語とは別に扱います。':'English display does not imply U.S. tax rules. Tax regimes and filing forms are separate from UI language.',
 'Data Shaperは会計データの整理・集計を補助するサービスです。税務代理、個別の税務判断、税務書類の作成代行を行うものではありません。申告・提出前に利用者自身で内容を確認し、必要に応じて税理士または所轄機関へ確認してください。':'Data Shaper assists with organizing and aggregating accounting data. It does not provide tax representation, individualized tax judgments, or tax-return preparation services. Review all outputs before filing and consult a qualified tax professional or authority when necessary.'
 };
 let current='ja';
