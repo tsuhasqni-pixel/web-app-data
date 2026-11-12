@@ -16,6 +16,8 @@ lead_time_days:['lead_time_days','lead time','リードタイム','リードタ�
 category:['category','分類','カテゴリ','カテゴリー','費目','支出項目','収支項目'],
 flow_type:['flow_type','収支区分','入出金区分','収入支出','収支','type'],
 description:['description','摘要','内容','メモ','備考','description'],
+business_unit:['business_unit','business unit','business','事業区分','事業','事業部','部門'],
+tax_category:['tax_category','tax category','tax class','税区分','税率区分','課税区分'],
 account_code:['account_code','勘定科目コード','科目コード','account id'],
 account_name:['account','account_name','勘定科目','科目名','科目'],
 amount:['amount','金額','残高','balance','value'],
