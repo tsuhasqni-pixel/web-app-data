@@ -44,15 +44,25 @@ function firstConfigured(entries){
   }
   return {name:'',value:''};
 }
+function firstValid(entries,validator){
+  let firstNonEmpty={name:'',value:''};
+  for(const [name,value] of entries){
+    const cleaned=clean(value);
+    if(!cleaned)continue;
+    if(!firstNonEmpty.value)firstNonEmpty={name,value:cleaned};
+    if(validator(cleaned))return {name,value:cleaned};
+  }
+  return firstNonEmpty;
+}
 export function billingConfig(env={}){
   const mode=billingMode(env),live=mode==='live';
   const secretEntry=live
-    ?firstConfigured([
+    ?firstValid([
       ['STRIPE_LIVE_SECRET_KEY',env.STRIPE_LIVE_SECRET_KEY],
       ['STRIPE_SECRET_KEY',env.STRIPE_SECRET_KEY],
       ['STRIPE_API_KEY',env.STRIPE_API_KEY]
-    ])
-    :firstConfigured([['STRIPE_TEST_SECRET_KEY',env.STRIPE_TEST_SECRET_KEY]]);
+    ],isLiveSecret)
+    :firstValid([['STRIPE_TEST_SECRET_KEY',env.STRIPE_TEST_SECRET_KEY]],isTestSecret);
   const webhookEntry=live
     ?firstConfigured([
       ['DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET',env.DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET],
