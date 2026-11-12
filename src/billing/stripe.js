@@ -7,8 +7,19 @@ export const DATA_SHAPER_TIERS={
 };
 
 function clean(v){return typeof v==='string'?v.trim():''}
-function isTestSecret(v){return /^(?:sk|rk)_test_[A-Za-z0-9_]+$/.test(v)}
-function isLiveSecret(v){return /^(?:sk|rk)_live_[A-Za-z0-9_]+$/.test(v)}
+function isTestSecret(v){return /^(?:sk|rk)_test_[^\s=]+$/.test(v)}
+function isLiveSecret(v){return /^(?:sk|rk)_live_[^\s=]+$/.test(v)}
+export function stripeSecretIssue(value,{live=false}={}){
+  const v=clean(value);
+  if(!v)return 'missing';
+  if(v.includes('=')||/^(?:STRIPE_[A-Z_]+|DATA_SHAPER_[A-Z_]+)=/.test(v))return 'pasted_assignment';
+  if(/^pk_(?:live|test)_/.test(v))return 'publishable_key_not_secret';
+  if(live&&/^(?:sk|rk)_test_/.test(v))return 'test_key_in_live';
+  if(!live&&/^(?:sk|rk)_live_/.test(v))return 'live_key_in_test';
+  if(live&&!isLiveSecret(v))return 'invalid_live_secret_format';
+  if(!live&&!isTestSecret(v))return 'invalid_test_secret_format';
+  return null;
+}
 function isPrice(v){return /^price_[A-Za-z0-9]+$/.test(v)}
 function isWebhookSecret(v){return /^whsec_[A-Za-z0-9]+$/.test(v)}
 function isPortalConfig(v){return /^bpc_[A-Za-z0-9]+$/.test(v)}
@@ -59,7 +70,7 @@ export function billingConfig(env={}){
   return {
     mode,live,
     enabled:env.DATA_SHAPER_BILLING_ENABLED==='true',
-    secret,secretSource:secretEntry.name,proPriceId,litePriceId,priceId:proPriceId,webhookSecret,webhookSource:webhookEntry.name,portalConfigId,origin,
+    secret,secretSource:secretEntry.name,secretIssue:stripeSecretIssue(secret,{live}),proPriceId,litePriceId,priceId:proPriceId,webhookSecret,webhookSource:webhookEntry.name,portalConfigId,origin,
     secretConfigured:live?isLiveSecret(secret):isTestSecret(secret),
     proPriceConfigured:isPrice(proPriceId),
     litePriceConfigured:isPrice(litePriceId),
