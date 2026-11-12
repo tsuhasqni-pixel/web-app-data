@@ -185,8 +185,18 @@ describe('Data Shaper LIVE sale gates',()=>{
     expect(stripeSecretIssue('',{live:true})).toBe('missing');
     expect(stripeSecretIssue('pk_live_public123',{live:true})).toBe('publishable_key_not_secret');
     expect(stripeSecretIssue('sk_test_wrong123',{live:true})).toBe('test_key_in_live');
+    expect(stripeSecretIssue('whsec_wrongplace',{live:true})).toBe('webhook_secret_not_api_key');
+    expect(stripeSecretIssue('price_wrongplace',{live:true})).toBe('price_id_not_api_key');
     expect(stripeSecretIssue('STRIPE_LIVE_SECRET_KEY=sk_live_abc123',{live:true})).toBe('pasted_assignment');
     expect(stripeSecretIssue('sk_live_abc-123',{live:true})).toBe(null);
+    expect(stripeSecretIssue('managed_live_candidate_123',{live:true})).toBe('unrecognized_format_verify_with_stripe');
+  });
+  it('allows an unknown backend credential format only to reach Stripe verification',()=>{
+    const candidate={...liveEnv,STRIPE_LIVE_SECRET_KEY:'managed_live_candidate_123'};
+    const cfg=billingConfig(candidate);
+    expect(cfg.secretConfigured).toBe(true);
+    expect(cfg.secretIssue).toBe('unrecognized_format_verify_with_stripe');
+    expect(billingMissing(candidate,'pro')).not.toContain('STRIPE_LIVE_SECRET_KEY');
   });
   it('validates exact JPY monthly prices and Data Shaper product metadata',()=>{
     const good={livemode:true,active:true,currency:'jpy',unit_amount:980,recurring:{interval:'month',interval_count:1},product:{active:true,metadata:{app:'data-shaper',tier:'pro'}}};
