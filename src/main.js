@@ -34,7 +34,8 @@ let statementConfig={accountField:'account_name',amountField:'amount',debitField
 let selectedBatchSheets=new Set(),batchResults=[];
 let batchOptions={trim:true,width:true,removeExactDuplicates:false};
 let authState={loaded:false,loading:false,authenticated:false,user:null,entitlement:{tier:'free',pro:false,source:'stripe',reason:'not_authenticated'}};
-let billingState={loaded:false,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,mode:'test',missing:[],proMissing:[],liteMissing:[]};
+let billingState={loaded:false,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,saleReady:false,mode:'test',missing:[],proMissing:[],liteMissing:[]};
+let legalConsent={lite:false,pro:false};
 
 function el(tag,text,parent,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;(parent||app).appendChild(e);return e;}
 function button(text,onClick,parent,cls){const b=el('button',tr(text),parent,cls);b.type='button';b.addEventListener('click',onClick);return b;}
@@ -56,33 +57,36 @@ async function refreshBilling(){
  try{
    const res=await fetch('/api/billing/status',{credentials:'same-origin',headers:{accept:'application/json'}});
    const data=await res.json();
+   const mode=data.mode==='live'?'live':'test';
    billingState={
      loaded:true,loading:false,enabled:data.billing_enabled===true,
-     ready:data.ready_for_test===true,
-     proReady:data.pro_ready_for_test===true,
-     liteReady:data.lite_ready_for_test===true,
-     mode:data.mode||'test',
+     ready:mode==='live'?data.ready_for_live===true:data.ready_for_test===true,
+     proReady:data.pro_ready===true||data.pro_ready_for_test===true,
+     liteReady:data.lite_ready===true||data.lite_ready_for_test===true,
+     saleReady:data.sale_gate_ready===true,
+     mode,
      missing:Array.isArray(data.missing)?data.missing:[],
      proMissing:Array.isArray(data.pro_missing)?data.pro_missing:[],
      liteMissing:Array.isArray(data.lite_missing)?data.lite_missing:[]
    };
  }catch{
-   billingState={loaded:true,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,mode:'test',missing:['status_unavailable'],proMissing:['status_unavailable'],liteMissing:['status_unavailable']};
+   billingState={loaded:true,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,saleReady:false,mode:'test',missing:['status_unavailable'],proMissing:['status_unavailable'],liteMissing:['status_unavailable']};
  }
  render();
 }
-async function startTestCheckout(tier='pro'){
+async function startCheckout(tier='pro'){
+ if(legalConsent[tier]!==true){alert(tr('購入前に利用規約・プライバシー・課金/解約条件への同意が必要です。'));return;}
  try{
    const res=await fetch('/api/billing/checkout',{
      method:'POST',
      credentials:'same-origin',
      headers:{accept:'application/json','content-type':'application/json'},
-     body:JSON.stringify({tier})
+     body:JSON.stringify({tier,accept_terms:true})
    });
    const data=await res.json();
    if(!res.ok||!data?.url)throw new Error(data?.error||'checkout_failed');
    location.assign(data.url);
- }catch(e){alert('TEST決済を開始できませんでした: '+e.message);}
+ }catch(e){alert((billingState.mode==='live'?tr('決済を開始できませんでした: '):tr('TEST決済を開始できませんでした: '))+e.message);}
 }
 async function logoutAuth(){
  try{await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{accept:'application/json'}});}catch{}
@@ -584,10 +588,22 @@ function renderDepreciationHelper(parent){
  }
 }
 
+function renderLegalConsent(parent,tier){
+ const wrap=el('label',undefined,parent,'legal-consent');
+ const input=el('input',undefined,wrap);input.type='checkbox';input.checked=legalConsent[tier]===true;
+ input.addEventListener('change',()=>{legalConsent[tier]=input.checked;render();});
+ const text=el('span',undefined,wrap);
+ text.append(document.createTextNode(tr('購入前に ')));
+ const terms=el('a',tr('利用規約'),text);terms.href='/legal/terms/';terms.target='_blank';terms.rel='noopener';
+ text.append(document.createTextNode(' / '));
+ const privacy=el('a',tr('プライバシー'),text);privacy.href='/legal/privacy/';privacy.target='_blank';privacy.rel='noopener';
+ text.append(document.createTextNode(' / '));
+ const billing=el('a',tr('課金・解約条件'),text);billing.href='/legal/billing/';billing.target='_blank';billing.rel='noopener';
+ text.append(document.createTextNode(tr(' を確認し、月額自動更新条件に同意します。')));
+ return input;
+}
 function renderInlinePaidGate(parent,requiredTier){
- const isPro=requiredTier==='pro';
- const label=isPro?'Pro':'Lite';
- const price=isPro?'¥980 / 月':'¥480 / 月';
+ const isPro=requiredTier==='pro',label=isPro?'Pro':'Lite',price=isPro?'¥980 / 月':'¥480 / 月';
  const s=section(label+'：詳細機能',parent);
  el('span',label,s,'plan-badge '+(isPro?'pro':'lite'));
  if(!authState.loaded)return el('p','ログイン状態を確認しています。',s,'status');
@@ -595,19 +611,16 @@ function renderInlinePaidGate(parent,requiredTier){
    el('p','Freeでは簡易レポートまで利用できます。'+label+'では詳細出力・再利用機能を開放します。',s,'pro-note');
    const login=el('a','Googleでログイン',s,'login-link');login.href='/api/auth/google/start';return;
  }
- if(isPro){
-   el('p','決算・勘定科目対応はPro機能です。Googleログインだけでは開放せず、Stripe entitlementを確認します。',s,'pro-note');
-   if(billingState.ready){
-     el('p','現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
-     button('TEST Proを開始（月額 ¥980）',()=>startTestCheckout('pro'),s);
-   }
+ if(isPro)el('p','決算・勘定科目対応はPro機能です。Googleログインだけでは開放せず、Stripe entitlementを確認します。',s,'pro-note');
+ const ready=isPro?billingState.proReady:billingState.liteReady;
+ if(ready){
+   const live=billingState.mode==='live';
+   el('p',live?label+' '+price+' / 月額自動更新。最終支払額はStripe Checkoutで確認してください。':'現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
+   renderLegalConsent(s,requiredTier);
+   const b=button((live?'': 'TEST ')+label+'を開始（'+price+'）',()=>startCheckout(requiredTier),s);
+   b.disabled=legalConsent[requiredTier]!==true;
  }else{
-   if(billingState.liteReady){
-     el('p','現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
-     button('TEST Liteを開始（月額 ¥480）',()=>startTestCheckout('lite'),s);
-   }else{
-     el('p','Liteの価格は月額¥480で確定済みです。Stripe TEST Priceが未接続の間は購入ボタンを開放しません。現在のPro契約者はLite機能も利用できます。',s,'pro-note');
-   }
+   el('p',billingState.mode==='live'?'販売開始条件の確認が完了していないため、購入を停止しています。':'Stripe TEST決済は準備中です。',s,'pro-note');
  }
 }
 
@@ -766,6 +779,8 @@ function render(){
  const footer=el('footer',undefined,app,'app-footer');
  const privacy=el('a','プライバシー',footer);privacy.href='/legal/privacy/';
  const terms=el('a','利用規約',footer);terms.href='/legal/terms/';
+ const billing=el('a','課金・解約条件',footer);billing.href='/legal/billing/';
+ const commerce=el('a','販売条件',footer);commerce.href='/legal/commerce/';
  const disclosure=el('a','運営者情報・情報開示',footer);
  disclosure.href='/api/legal/disclosure';
  disclosure.rel='noreferrer';
@@ -776,10 +791,11 @@ render();
 refreshAuth();
 refreshBilling();
 if(new URLSearchParams(location.search).get('billing')==='success'){
+  const requested=new URLSearchParams(location.search).get('tier')==='lite'?'lite':'pro';
   let attempts=0;
   const timer=setInterval(async()=>{
     attempts+=1;
     await refreshAuth();
-    if(authState.entitlement?.pro===true||attempts>=5)clearInterval(timer);
+    if(hasTier(requested)||attempts>=15)clearInterval(timer);
   },1000);
 }
