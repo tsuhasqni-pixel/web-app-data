@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {billingConfig,billingMissing,billingMode,createCheckoutSession,verifyStripeWebhook,validateTierPriceObject} from '../src/billing/stripe.js';
+import {billingConfig,billingMissing,billingMode,createCheckoutSession,verifyStripeWebhook,validateTierPriceObject,stripeSecretIssue} from '../src/billing/stripe.js';
 import {subscriptionMatchesDataShaper,handleCheckout,handleWebhook} from '../src/billing/routes.js';
 
 const ORIGIN='https://data.example.com';
@@ -169,6 +169,13 @@ describe('Data Shaper LIVE sale gates',()=>{
     expect(billingMissing(aliasEnv,'pro')).not.toContain('DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET');
     aliasEnv.STRIPE_SECRET_KEY='sk_test_not_allowed';
     expect(billingConfig(aliasEnv).secretConfigured).toBe(false);
+  });
+  it('classifies live Stripe secret mistakes without exposing the value',()=>{
+    expect(stripeSecretIssue('',{live:true})).toBe('missing');
+    expect(stripeSecretIssue('pk_live_public123',{live:true})).toBe('publishable_key_not_secret');
+    expect(stripeSecretIssue('sk_test_wrong123',{live:true})).toBe('test_key_in_live');
+    expect(stripeSecretIssue('STRIPE_LIVE_SECRET_KEY=sk_live_abc123',{live:true})).toBe('pasted_assignment');
+    expect(stripeSecretIssue('sk_live_abc-123',{live:true})).toBe(null);
   });
   it('validates exact JPY monthly prices and Data Shaper product metadata',()=>{
     const good={livemode:true,active:true,currency:'jpy',unit_amount:980,recurring:{interval:'month',interval_count:1},product:{active:true,metadata:{app:'data-shaper',tier:'pro'}}};
