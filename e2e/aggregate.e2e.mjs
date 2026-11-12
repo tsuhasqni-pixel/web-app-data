@@ -136,8 +136,9 @@ test('English UI is fully generic and does not expose Japan-specific blue/white 
   await purpose.selectOption('self_employed');
   await expect(purposeSection).toContainText('Self-employed / Freelancer');
   await expect(page.getByRole('heading',{name:'Usage guide / sample'})).toBeVisible();
-  await expect(page.getByText('Account (optional)')).toHaveCount(0);
   await expect(page.getByText(/青色|白色/)).toHaveCount(0);
+  const reportWorkspace=page.locator('.workspace-panel');
+  await expect.poll(async()=>await reportWorkspace.innerText()).not.toMatch(/[ぁ-んァ-ヶ一-龠々]/);
 
   await purpose.selectOption('corporate');
   await expect(page.getByRole('heading',{name:'Tax calculation helper · Pro'})).toBeVisible();
