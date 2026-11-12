@@ -35,9 +35,20 @@ async function authenticatedUser(request,env){
   const identity=await getUserIdentity(env,session.user_id);
   return identity?{userId:identity.user_id,email:identity.email||''}:null;
 }
+async function ensureCommercialTables(env){
+  if(!env?.DB?.prepare)throw new Error('db_not_bound');
+  const ddl=[
+    "CREATE TABLE IF NOT EXISTS stripe_webhook_events (event_id TEXT PRIMARY KEY,event_type TEXT NOT NULL,stripe_created INTEGER,livemode INTEGER NOT NULL,received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,processed_at TEXT,last_error TEXT)",
+    "CREATE INDEX IF NOT EXISTS stripe_webhook_events_unprocessed ON stripe_webhook_events(processed_at, received_at)",
+    "CREATE TABLE IF NOT EXISTS checkout_acceptances (stripe_checkout_session_id TEXT PRIMARY KEY,stripe_customer_id TEXT,stripe_subscription_id TEXT,user_id TEXT NOT NULL,product_key TEXT NOT NULL,tier TEXT NOT NULL,legal_version TEXT NOT NULL,accepted_at INTEGER NOT NULL,livemode INTEGER NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY (user_id) REFERENCES users(id))",
+    "CREATE INDEX IF NOT EXISTS checkout_acceptances_user ON checkout_acceptances(user_id, accepted_at)"
+  ];
+  for(const sql of ddl)await env.DB.prepare(sql).run();
+}
 async function commercialDbStatus(env){
   if(!env?.DB?.prepare)return {schema_ready:false,webhook_backlog:null};
   try{
+    await ensureCommercialTables(env);
     const row=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('users','oauth_identities','stripe_customer_links','stripe_entitlements','stripe_webhook_events','checkout_acceptances')").first();
     const schemaReady=Number(row?.n)===6;
     if(!schemaReady)return {schema_ready:false,webhook_backlog:null};
@@ -212,6 +223,7 @@ async function finishWebhookEvent(env,eventId,error=null){
 export async function handleWebhook(request,env,deps={}){
   const c=billingConfig(env);
   if(!c.webhookConfigured||!env?.DB?.prepare)return json({error:'webhook_not_configured'},503);
+  try{await ensureCommercialTables(env)}catch{return json({error:'commercial_schema_unavailable'},503)}
   const raw=await request.text();
   if(raw.length>1024*1024)return json({error:'payload_too_large'},413);
   const sig=request.headers.get('Stripe-Signature')||'';
