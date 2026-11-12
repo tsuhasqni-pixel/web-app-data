@@ -26,18 +26,40 @@ function exactOrigin(value){
 export function billingMode(env={}){return env.DATA_SHAPER_LIVE_BILLING_ENABLED==='true'?'live':'test'}
 export function expectedLivemode(env={}){return billingMode(env)==='live'}
 
+function firstConfigured(entries){
+  for(const [name,value] of entries){
+    const cleaned=clean(value);
+    if(cleaned)return {name,value:cleaned};
+  }
+  return {name:'',value:''};
+}
 export function billingConfig(env={}){
   const mode=billingMode(env),live=mode==='live';
-  const secret=clean(live?env.STRIPE_LIVE_SECRET_KEY:env.STRIPE_TEST_SECRET_KEY);
+  const secretEntry=live
+    ?firstConfigured([
+      ['STRIPE_LIVE_SECRET_KEY',env.STRIPE_LIVE_SECRET_KEY],
+      ['STRIPE_SECRET_KEY',env.STRIPE_SECRET_KEY],
+      ['STRIPE_API_KEY',env.STRIPE_API_KEY]
+    ])
+    :firstConfigured([['STRIPE_TEST_SECRET_KEY',env.STRIPE_TEST_SECRET_KEY]]);
+  const webhookEntry=live
+    ?firstConfigured([
+      ['DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET',env.DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET],
+      ['STRIPE_LIVE_WEBHOOK_SECRET',env.STRIPE_LIVE_WEBHOOK_SECRET],
+      ['DATA_SHAPER_STRIPE_WEBHOOK_SECRET',env.DATA_SHAPER_STRIPE_WEBHOOK_SECRET],
+      ['STRIPE_WEBHOOK_SECRET',env.STRIPE_WEBHOOK_SECRET]
+    ])
+    :firstConfigured([['DATA_SHAPER_STRIPE_WEBHOOK_SECRET',env.DATA_SHAPER_STRIPE_WEBHOOK_SECRET]]);
+  const secret=secretEntry.value;
   const proPriceId=clean(live?env.DATA_SHAPER_STRIPE_LIVE_PRO_PRICE_ID:env.DATA_SHAPER_STRIPE_TEST_PRICE_ID);
   const litePriceId=clean(live?env.DATA_SHAPER_STRIPE_LIVE_LITE_PRICE_ID:env.DATA_SHAPER_STRIPE_TEST_LITE_PRICE_ID);
-  const webhookSecret=clean(live?env.DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET:env.DATA_SHAPER_STRIPE_WEBHOOK_SECRET);
+  const webhookSecret=webhookEntry.value;
   const portalConfigId=clean(live?env.DATA_SHAPER_STRIPE_LIVE_PORTAL_CONFIG_ID:env.DATA_SHAPER_STRIPE_TEST_PORTAL_CONFIG_ID);
   const origin=exactOrigin(env.APP_ORIGIN);
   return {
     mode,live,
     enabled:env.DATA_SHAPER_BILLING_ENABLED==='true',
-    secret,proPriceId,litePriceId,priceId:proPriceId,webhookSecret,portalConfigId,origin,
+    secret,secretSource:secretEntry.name,proPriceId,litePriceId,priceId:proPriceId,webhookSecret,webhookSource:webhookEntry.name,portalConfigId,origin,
     secretConfigured:live?isLiveSecret(secret):isTestSecret(secret),
     proPriceConfigured:isPrice(proPriceId),
     litePriceConfigured:isPrice(litePriceId),
