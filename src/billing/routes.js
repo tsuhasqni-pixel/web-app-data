@@ -96,6 +96,7 @@ export async function handleBillingStatus(_request,env){
     live_sale_approved:c.liveSaleApproved,
     stripe_secret_configured:c.secretConfigured,
     stripe_secret_source:c.secretSource||null,
+    stripe_secret_issue:c.secretIssue||null,
     pro_price_configured:c.proPriceConfigured,
     lite_price_configured:c.litePriceConfigured,
     webhook_secret_configured:c.webhookConfigured,
