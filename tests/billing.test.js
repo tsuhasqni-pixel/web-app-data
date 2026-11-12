@@ -154,6 +154,22 @@ describe('Data Shaper LIVE sale gates',()=>{
     expect(billingMissing({...liveEnv,STRIPE_LIVE_SECRET_KEY:'sk_test_wrong'},'pro')).toContain('STRIPE_LIVE_SECRET_KEY');
     expect(billingMissing({...liveEnv,DATA_SHAPER_LIVE_SALE_APPROVED:'false'},'pro')).toContain('DATA_SHAPER_LIVE_SALE_APPROVED');
   });
+  it('accepts safe legacy live secret aliases but still rejects TEST keys in LIVE mode',()=>{
+    const aliasEnv={...liveEnv};
+    delete aliasEnv.STRIPE_LIVE_SECRET_KEY;
+    delete aliasEnv.DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET;
+    aliasEnv.STRIPE_SECRET_KEY='rk_live_legacy123';
+    aliasEnv.STRIPE_WEBHOOK_SECRET='whsec_legacy123';
+    const cfg=billingConfig(aliasEnv);
+    expect(cfg.secretConfigured).toBe(true);
+    expect(cfg.secretSource).toBe('STRIPE_SECRET_KEY');
+    expect(cfg.webhookConfigured).toBe(true);
+    expect(cfg.webhookSource).toBe('STRIPE_WEBHOOK_SECRET');
+    expect(billingMissing(aliasEnv,'pro')).not.toContain('STRIPE_LIVE_SECRET_KEY');
+    expect(billingMissing(aliasEnv,'pro')).not.toContain('DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET');
+    aliasEnv.STRIPE_SECRET_KEY='sk_test_not_allowed';
+    expect(billingConfig(aliasEnv).secretConfigured).toBe(false);
+  });
   it('validates exact JPY monthly prices and Data Shaper product metadata',()=>{
     const good={livemode:true,active:true,currency:'jpy',unit_amount:980,recurring:{interval:'month',interval_count:1},product:{active:true,metadata:{app:'data-shaper',tier:'pro'}}};
     expect(validateTierPriceObject(good,{tier:'pro',livemode:true}).ok).toBe(true);
