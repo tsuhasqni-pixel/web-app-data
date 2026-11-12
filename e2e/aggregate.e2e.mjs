@@ -114,14 +114,31 @@ test('PDF renderer creates a printable Japanese report page',async({page,context
 });
 
 
-test('English UI exposes aggregation, accounting reports, tax rules and depreciation guidance',async({page})=>{
+test('English UI is fully generic and does not expose Japan-specific blue/white filing modes',async({page})=>{
   await page.goto('/');
   await page.locator('.language-control select').selectOption('en');
   await expect(page.getByRole('button',{name:'Aggregation · Free'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Accounting & Reports · Free / Lite / Pro'})).toBeVisible();
+
+  await page.getByRole('button',{name:'Aggregation · Free'}).click();
+  await expect(page.getByText('Choose file')).toBeVisible();
+  await expect(page.getByText('No file selected')).toBeVisible();
+  await expect(page.getByText(/ファイルの選択|ファイルが選択されていません/)).toHaveCount(0);
+
   await page.getByRole('button',{name:'Accounting & Reports · Free / Lite / Pro'}).click();
   await expect(page.getByRole('heading',{name:'Report purpose'})).toBeVisible();
-  const purpose=page.locator('section').filter({has:page.getByRole('heading',{name:'Report purpose'})}).locator('select');
+  const purposeSection=page.locator('section').filter({has:page.getByRole('heading',{name:'Report purpose'})});
+  const purpose=purposeSection.locator('select');
+  await expect(purpose.locator('option')).toHaveText(['Company','Self-employed / Freelancer','Household / personal','Custom']);
+  await expect(page.getByText(/blue return|white return/i)).toHaveCount(0);
+  await expect(page.getByText(/English display does not imply U\.S\. tax rules/i)).toBeVisible();
+
+  await purpose.selectOption('self_employed');
+  await expect(purposeSection).toContainText('Self-employed / Freelancer');
+  await expect(page.getByRole('heading',{name:'Usage guide / sample'})).toBeVisible();
+  await expect(page.getByText('Account (optional)')).toHaveCount(0);
+  await expect(page.getByText(/青色|白色/)).toHaveCount(0);
+
   await purpose.selectOption('corporate');
   await expect(page.getByRole('heading',{name:'Tax calculation helper · Pro'})).toBeVisible();
   await expect(page.getByText(/tax calculations by business, tax category, and effective period are Pro features/i)).toBeVisible();
