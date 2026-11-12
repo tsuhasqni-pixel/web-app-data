@@ -72,14 +72,22 @@ Do not set the live gates true until all items are completed:
 
 - Customer-facing total-price behavior: **CONFIRMED** — Free ¥0 / Lite ¥480 / Pro ¥980 are customer totals. Stripe Tax automatic add-on is not assumed.
   - Business-side consumption-tax filing/accounting still depends on the operator's tax status and remains separate from the in-app accounting-data tax helper.
-- Create / verify LIVE Stripe Products and Prices:
-  - Lite: JPY 480 / month; metadata app=data-shaper, tier=lite.
-  - Pro: JPY 980 / month; metadata app=data-shaper, tier=pro.
-- Configure STRIPE_LIVE_SECRET_KEY.
-- Configure DATA_SHAPER_STRIPE_LIVE_LITE_PRICE_ID.
-- Configure DATA_SHAPER_STRIPE_LIVE_PRO_PRICE_ID.
-- Configure DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET.
-- Configure DATA_SHAPER_STRIPE_LIVE_PORTAL_CONFIG_ID.
+- LIVE Stripe Products / Prices: **CREATED**
+  - Lite Product: `prod_Vc9LJeugC9FABc`
+  - Lite Price: `price_1Uav2zBGa8rL8jwIJtqLaBJC` — JPY 480 / month
+  - Pro Product: `prod_Vc9MxlPOFViYQg`
+  - Pro Price: `price_1Uav3IBGa8rL8jwIJcEFxAFI` — JPY 980 / month
+  - Product metadata: `app=data-shaper`, tier=lite|pro
+  - Product statement descriptor: `DATASHAPER`
+- Live Customer Portal: **CREATED**
+  - Portal config: `bpc_1Uav4GBGa8rL8jwIqg24naP8`
+  - cancellation: at period end
+- Live Webhook endpoint: **CREATED**
+  - Endpoint: `we_1Uav4YBGa8rL8jwIomFuWnxK`
+  - URL: `https://web-app-data.data-analist.workers.dev/api/billing/webhook`
+- Configure STRIPE_LIVE_SECRET_KEY in Cloudflare Secret.
+- Configure DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET in Cloudflare Secret.
+- Live Price IDs and Portal config ID are now wired in wrangler config.
 - Verify Stripe public business name / statement descriptor / support contact.
 - Confirm the published refund / cancellation policy.
 - Verify that the common operator-information disclosure route actually responds without delay before a customer decides to buy.
