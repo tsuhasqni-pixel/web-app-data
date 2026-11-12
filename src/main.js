@@ -647,7 +647,14 @@ function renderBalance(){
  el('p',purpose.description,purposeSection,'status');
  renderReportPurposeGuide(wrap,purpose);
  el('p',reportDisclaimer,wrap,'legal-note');
- renderTaxSettings(wrap);
+ if(['corporate','sole_blue','sole_white'].includes(purpose.id)){
+   if(proAuthorized())renderTaxSettings(wrap);
+   else{
+     const taxGate=section('税率計算補助 · Pro',wrap);
+     el('span','Pro',taxGate,'plan-badge pro');
+     el('p','事業区分・税区分・適用期間ごとの税率設定と税額計算はPro機能です。Freeでは税率を推測・適用しません。',taxGate,'pro-note');
+   }
+ }
 
  if(!renderUpload(wrap))return;
  renderMappingWorkspace(wrap);renderPreview(wrap);
