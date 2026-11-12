@@ -13,7 +13,7 @@ import {exportCSV} from '../src/exporter/index.js';
 import {objectRowsToRows,openPrintReport} from '../src/exporter/report.js';
 import {validateTaxRules,resolveTaxRule,calculateTaxAmount,applyTaxRules} from '../src/tax/index.js';
 import {buildDepreciationSchedule} from '../src/depreciation/index.js';
-import {reportPurposes,buildSimpleReport,simpleReportToRows} from '../src/reporting/index.js';
+import {reportPurposes,normalizeReportPurposeId,buildSimpleReport,simpleReportToRows} from '../src/reporting/index.js';
 import {scenarios} from './fixtures/scenarios.js';
 
 describe('local-first data workflow',()=>{
@@ -78,7 +78,10 @@ describe('local-first data workflow',()=>{
    expect(rows).toHaveLength(3);
  });
  it('provides guided report purposes without pretending sample values are user history',()=>{
-   expect(reportPurposes.map(x=>x.id)).toEqual(expect.arrayContaining(['corporate','sole_blue','sole_white','household','custom']));
+   expect(reportPurposes.map(x=>x.id)).toEqual(['corporate','self_employed','household','custom']);
+   expect(reportPurposes.some(x=>/青色|白色/.test(x.label))).toBe(false);
+   expect(normalizeReportPurposeId('sole_blue')).toBe('self_employed');
+   expect(normalizeReportPurposeId('sole_white')).toBe('self_employed');
    const household=reportPurposes.find(x=>x.id==='household');
    expect(household.suggestedFields).toContain('収支区分');
    expect(household.sample.length).toBeGreaterThan(0);
