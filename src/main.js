@@ -748,6 +748,8 @@ function renderRecipe(){
  const input=el('input',undefined,s);input.type='file';input.accept='.json';input.setAttribute('aria-label','Recipe JSONを読み込む');
  input.addEventListener('change',async()=>{
    try{
+     if(!input.files?.[0])return;
+     if(input.files[0].size>1024*1024)throw new Error('Recipeは1 MBまでです');
      const recipe=JSON.parse(await input.files[0].text());
      validateRecipe(recipe,{sheets,analysis,allowedFields:fields});
      analysis.mapping={...recipe.mapping};
