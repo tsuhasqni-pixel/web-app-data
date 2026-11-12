@@ -82,6 +82,9 @@ describe('local-first data workflow',()=>{
    expect(out.categories.find(x=>x.category==='食費').amount).toBe(10000);
    const csvRows=simpleReportToRows(out,'household');
    expect(csvRows.some(r=>r[0]==='収支差額'&&r[1]===240000)).toBe(true);
+   const enRows=simpleReportToRows(out,'household',{language:'en'});
+   expect(enRows.some(r=>r[0]==='Net cash flow'&&r[1]===240000)).toBe(true);
+   expect(enRows.some(r=>r[0]==='Notice'&&String(r[1]).includes('does not provide tax representation'))).toBe(true);
  });
  it('converts object rows into table rows for CSV/PDF report export',()=>{
    expect(objectRowsToRows([{商品:'A',価格:100},{商品:'B',価格:200}])).toEqual([
