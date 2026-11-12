@@ -4,7 +4,7 @@ export const fields=[
   'sku_id','sku_name','date','period_start','period_end','frequency',
   'demand_qty','inventory_on_hand','inbound_qty','outbound_qty',
   'location_id','location_name','unit','lead_time_days',
-  'category','flow_type','description',
+  'category','flow_type','description','business_unit','tax_category',
   'account_code','account_name','amount','debit','credit','statement_section'
 ];
 
