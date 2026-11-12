@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 
 const required = ['GOOGLE_OAUTH_CLIENT_SECRET', 'SESSION_SECRET'];
-const optional = ['STRIPE_TEST_SECRET_KEY', 'DATA_SHAPER_STRIPE_WEBHOOK_SECRET'];
+const optional = [
+  'STRIPE_TEST_SECRET_KEY',
+  'DATA_SHAPER_STRIPE_WEBHOOK_SECRET',
+  'STRIPE_LIVE_SECRET_KEY',
+  'DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET'
+];
 const missing = required.filter((name) => !String(process.env[name] || '').trim());
 
 if (missing.length) {
