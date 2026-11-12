@@ -22,7 +22,9 @@ export async function readWorkbook(file){
       throw new Error('UTF-8 decoding failed. Shift-JIS is not silently guessed in this MVP; convert the file to UTF-8 or use XLSX.');
     }
     const sep=ext==='tsv'?'\t':undefined;
-    return [{name:'CSV',sourceFile:file.name,rows:parseCSV(text,sep)}];
+    const rows=parseCSV(text,sep);
+    assertShape(rows);
+    return [{name:'CSV',sourceFile:file.name,rows}];
   }
   if(ext==='xlsx'){
     const sheets=await readXlsxFile(file,{getSheets:true});
