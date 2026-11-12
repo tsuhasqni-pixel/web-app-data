@@ -88,9 +88,13 @@ Launch prices are fixed at **Free ¥0 / Lite ¥480 per month / Pro ¥980 per mon
 
 ## Language support
 - The application UI can switch between **日本語 / English**.
+- UI language is independent from tax jurisdiction. English does **not** imply U.S. tax rules, and Japanese does not automatically apply a Japanese filing regime.
+- Standard report purposes are jurisdiction-neutral: Company / Self-employed or Freelancer / Household / Custom.
+- Japan-specific blue/white return choices are not exposed as default product modes.
 - CSV/XLSX input values and user-defined account names are never machine-translated.
 - Generated Free/Lite report labels follow the selected UI language.
 - Demand/accounting canonical field names remain stable across languages so Recipes and mappings do not change when the UI language changes.
+- The built-in balance-sheet starter remains Japan-oriented and is labeled as such; other jurisdictions should import/edit their own statement template rather than infer a tax form from the UI language.
 
 ## Period-aware tax calculation helper
 This is a **Pro accounting feature** and an accounting/data calculation helper and is **separate from Stripe tax settings for selling Data Shaper itself**.

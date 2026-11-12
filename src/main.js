@@ -12,7 +12,7 @@ import {buildCleaningZip,saveBlob} from './exporter/batch.js';
 import {objectRowsToRows,openPrintReport} from './exporter/report.js';
 import {saveXlsx} from './exporter/xlsx.js';
 import {buildRecipe,validateRecipe} from './recipe/index.js';
-import {reportPurposes,getReportPurpose,buildSimpleReport,simpleReportToRows,reportDisclaimer} from './reporting/index.js';
+import {reportPurposes,getReportPurpose,normalizeReportPurposeId,buildSimpleReport,simpleReportToRows,reportDisclaimer} from './reporting/index.js';
 import {initLanguage,language,setLanguage,tr,languageOptions,applyTranslations} from './i18n.js';
 import {validateTaxRules,applyTaxRules} from './tax/index.js';
 import {buildDepreciationSchedule} from './depreciation/index.js';
@@ -139,7 +139,7 @@ function renderPlanOverview(){
    el('span',plan.price,card,'plan-price');
    el('p',plan.copy,card);
  });
- el('p','価格本体は Free ¥0 / Lite 月額¥480 / Pro 月額¥980 で固定します。税の扱いと最終支払額表示は販売開始前に事業者判断で確定し、Stripe TESTでは接続済みのTierだけ購入ボタンを有効化します。',s,'status');
+ el('p','お客様の支払総額は Free ¥0 / Lite 月額¥480 / Pro 月額¥980 です。Stripe Taxによる追加課税は前提にせず、事業者側の税務・会計処理とは分離します。',s,'status');
 }
 function renderProLocked(){
  const wrap=el('div',undefined,app,'workspace-panel');
@@ -220,7 +220,20 @@ function renderTable(parent,rows,limit=15){
  rows.slice(0,limit).forEach(rec=>{const row=el('tr',undefined,tbl);keys.forEach(k=>el('td',String(rec[k]??''),row));});
 }
 function checkbox(parent,label,checked,onChange){
- const l=el('label',undefined,parent,'check');const c=el('input',undefined,l);c.type='checkbox';c.checked=checked;c.addEventListener('change',()=>onChange(c.checked));el('span',label,l);return c;
+ const l=el('label',undefined,parent,'check');const c=el('input',undefined,l);c.type='checkbox';c.checked=checked;c.addEventListener('change',()=>onChange(c.checked));el('span',tr(label),l);return c;
+}
+function filePicker(parent,{accept,ariaLabel,currentName='',onChange}={}){
+ const wrap=el('div',undefined,parent,'file-picker');
+ const input=el('input',undefined,wrap,'file-picker-native');
+ input.type='file';input.accept=accept||'';input.id='file-'+crypto.randomUUID();
+ input.setAttribute('aria-label',tr(ariaLabel||'ファイルを選択'));
+ const pick=el('label',tr('ファイルを選択'),wrap,'file-picker-button');pick.htmlFor=input.id;
+ const name=el('span',currentName||tr('ファイルが選択されていません'),wrap,'file-picker-name');
+ input.addEventListener('change',async()=>{
+   name.textContent=input.files?.[0]?.name||tr('ファイルが選択されていません');
+   if(onChange)await onChange(input);
+ });
+ return input;
 }
 function renderTabs(){
  const nav=el('div',undefined,app,'workspace-tabs');
@@ -236,10 +249,16 @@ function renderTabs(){
 }
 function renderUpload(parent){
  const s=section('ファイル',parent);
- const input=el('input',undefined,s);input.type='file';input.accept='.csv,.tsv,.xlsx';input.addEventListener('change',async()=>{
-   try{
-     sheets=await readWorkbook(input.files[0]);setSelected(0);selectedBatchSheets=new Set(sheets.map((_,i)=>i));batchResults=[];render();
-   }catch(err){alert('読み込み失敗: '+err.message);}
+ const input=filePicker(s,{
+   accept:'.csv,.tsv,.xlsx',
+   ariaLabel:'データファイルを選択',
+   currentName:selected?.sourceFile||'',
+   onChange:async input=>{
+     try{
+       if(!input.files?.[0])return;
+       sheets=await readWorkbook(input.files[0]);setSelected(0);selectedBatchSheets=new Set(sheets.map((_,i)=>i));batchResults=[];render();
+     }catch(err){alert(tr('読み込み失敗: ')+err.message);}
+   }
  });
  if(!sheets.length){el('p','UTF-8 CSV / TSV、XLSXをブラウザ内で処理します。最大15 MB。',s,'status');return false;}
  el('span','シート: ',s);
@@ -365,16 +384,15 @@ function renderTemplateEditor(parent){
  const s=section('決算書テンプレート（集計先）',parent);
  el('p','先に決算書の型を持ち、その科目へ入力試算表の科目を対応付けます。1つのテンプレート科目へ複数の入力科目を集約できます。',s,'status');
  el('p','初期値は日本基準の貸借対照表向けスターターテンプレートです。EDINET/XBRLやPDF→OCRで抽出した科目表も、同じテンプレート形式へ変換して差し替えられる設計です。',s,'status');
- const file=el('input',undefined,s);file.type='file';file.accept='.csv,.tsv,.xlsx';
- file.setAttribute('aria-label','決算書テンプレートを読み込む');
- file.addEventListener('change',async()=>{
+ const file=filePicker(s,{accept:'.csv,.tsv,.xlsx',ariaLabel:'決算書テンプレートを読み込む',onChange:async file=>{
    try{
+     if(!file.files?.[0])return;
      const books=await readWorkbook(file.files[0]);
      statementTemplate=parseStatementTemplateRows(books[0]?.rows||[]);
      templateMappings={};
      render();
-   }catch(e){alert('テンプレート読込失敗: '+e.message);}
- });
+   }catch(e){alert(tr('テンプレート読込失敗: ')+e.message);}
+ }});
  button('現在のテンプレートをCSV保存',()=>saveCsv('data-shaper-statement-template.csv',toCSV(templateToRows(statementTemplate))),s,'secondary-button');
  const table=el('table',undefined,s);const head=el('tr',undefined,table);
  ['順','区分','勘定科目','別名（|区切り）','残高側','操作'].forEach(x=>el('th',x,head));
@@ -505,10 +523,11 @@ function renderReportPurposeGuide(parent,purpose){
  const s=section('使い方ガイド / サンプル',parent);
  el('p','前年データや既存テンプレートがなくても開始できます。架空の前年値は補完せず、まず下記のような列を用意すると集計しやすくなります。',s,'status');
  const fields=el('div',undefined,s,'guide-fields');
- purpose.suggestedFields.forEach(x=>el('span',x,fields,'guide-chip'));
- el('h3','入力例',s);
- renderTable(s,purpose.sample,10);
- button('この入力例をサンプルCSVで保存',()=>saveCsv('data-shaper-'+purpose.id+'-sample.csv',exportObjectRows(purpose.sample)),s,'secondary-button');
+ purpose.suggestedFields.forEach(x=>el('span',tr(x),fields,'guide-chip'));
+ el('h3',tr('入力例'),s);
+ const localizedSample=purpose.sample.map(row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[tr(k),typeof v==='string'?tr(v):v])));
+ renderTable(s,localizedSample,10);
+ button('この入力例をサンプルCSVで保存',()=>saveCsv('data-shaper-'+purpose.id+'-sample.csv',exportObjectRows(language()==='en'?localizedSample:purpose.sample)),s,'secondary-button');
  el('p','サンプル値は使い方説明用であり、利用者の実績値・税務判断・推奨値ではありません。',s,'status');
 }
 
@@ -655,15 +674,16 @@ function renderStatementPreview(parent,agg,purpose){
 
 function renderBalance(){
  const wrap=el('div',undefined,app,'workspace-panel');
- el('p','法人・個人事業・家計を同じ入口から整理します。Freeは簡易サマリー、Liteは家計・自由形式の詳細レポート、Proは法人・個人事業の決算・申告準備を扱います。',wrap,'lead');
+ el('p','会社・個人事業/フリーランス・家計を同じ入口から整理します。Freeは簡易サマリー、Liteは家計・自由形式の詳細レポート、Proは会社・個人事業の会計整理を扱います。',wrap,'lead');
  const purposeSection=section('レポートの目的',wrap);
  el('span','Free / Lite / Pro',purposeSection,'plan-badge mixed');
  select(reportPurposes.map(x=>[x.id,x.label]),reportConfig.purpose,v=>{reportConfig.purpose=v;reportConfig.categoryField='';reportConfig.amountField='';reportConfig.flowField='';render();},purposeSection);
  const purpose=getReportPurpose(reportConfig.purpose);
  el('p',purpose.description,purposeSection,'status');
+ if(language()==='en')el('p','英語表示は米国税制を意味しません。税務制度・提出様式は言語とは別に扱います。',purposeSection,'status');
  renderReportPurposeGuide(wrap,purpose);
  el('p',reportDisclaimer,wrap,'legal-note');
- if(['corporate','sole_blue','sole_white'].includes(purpose.id)){
+ if(['corporate','self_employed'].includes(purpose.id)){
    if(proAuthorized())renderTaxSettings(wrap);
    else{
      const taxGate=section('税率計算補助 · Pro',wrap);
@@ -704,9 +724,9 @@ function renderBalance(){
      rows:simpleReportToRows(freeReport,purpose.id,{language:language()}),
      note:tr(reportDisclaimer)
    });
-   el('p','Freeでは上位5分類までを簡易出力します。法人・個人事業の正式な決算整理はProです。元ファイルはWorkerへ保存しません。',s,'status');
+   el('p','Freeでは上位5分類までを簡易出力します。会社・個人事業/フリーランスの詳細な会計整理はProです。元ファイルはWorkerへ保存しません。',s,'status');
 
-   const requiredTier=['corporate','sole_blue','sole_white'].includes(purpose.id)?'pro':'lite';
+   const requiredTier=['corporate','self_employed'].includes(purpose.id)?'pro':'lite';
    if(!hasTier(requiredTier)){renderInlinePaidGate(wrap,requiredTier);return;}
 
    const detail=section((requiredTier==='pro'?'Pro':'Lite')+'：詳細内訳',wrap);
@@ -720,7 +740,7 @@ function renderBalance(){
    });
    el('p','前年データがない場合、比較率や前年比を推測して作りません。前年ファイルを追加できた場合だけ比較指標を計算する方針です。',detail,'status');
 
-   if(['corporate','sole_blue'].includes(purpose.id)){
+   if(['corporate','self_employed'].includes(purpose.id)){
      renderTemplateEditor(wrap);
      renderSourceColumnConfig(wrap);
      const agg=currentStatementAggregation();
@@ -729,9 +749,6 @@ function renderBalance(){
        renderStatementPreview(wrap,agg,purpose);
      }
      renderDepreciationHelper(wrap);
-   }else if(purpose.id==='sole_white'){
-     const note=section('Pro：白色申告向け整理',wrap);
-     el('p','収入・費目別の詳細集計を入力準備資料として出します。税務上の必要経費該当性や申告書の完成判断は行いません。',note,'status');
    }else if(purpose.id==='household'){
      const note=section('Lite：家計の詳細利用',wrap);
      el('p','提出書類ではなく、家計管理・相談用の詳細内訳として利用します。過去データが追加された場合だけ期間比較を行う設計にします。',note,'status');
@@ -745,8 +762,7 @@ function renderRecipe(){
    const out=buildRecipe({sheets,analysis,options,profile,orientation,wideValueField,aggregateConfig,reportConfig,taxConfig,bsConfig,batchOptions,statementTemplate,templateMappings,statementConfig});
    saveText('data-shaper-recipe.json',JSON.stringify(out,null,2),'application/json');
  },s);
- const input=el('input',undefined,s);input.type='file';input.accept='.json';input.setAttribute('aria-label','Recipe JSONを読み込む');
- input.addEventListener('change',async()=>{
+ const input=filePicker(s,{accept:'.json',ariaLabel:'Recipe JSONを読み込む',onChange:async input=>{
    try{
      if(!input.files?.[0])return;
      if(input.files[0].size>1024*1024)throw new Error('Recipeは1 MBまでです');
@@ -763,6 +779,7 @@ function renderRecipe(){
      wideValueField=recipe.wideValueField||wideValueField;
      aggregateConfig={...aggregateConfig,...(recipe.aggregateConfig||{})};
      reportConfig={...reportConfig,...(recipe.reportConfig||{})};
+     reportConfig.purpose=normalizeReportPurposeId(reportConfig.purpose);
      taxConfig={...taxConfig,...(recipe.taxConfig||{}),rules:Array.isArray(recipe.taxConfig?.rules)?recipe.taxConfig.rules:taxConfig.rules};
      bsConfig={...bsConfig,...(recipe.bsConfig||{}),overrides:{...(recipe.bsConfig?.overrides||recipe.bsConfig?.assignments||{})}};
      batchOptions={...batchOptions,...(recipe.batchOptions||{})};
@@ -770,8 +787,8 @@ function renderRecipe(){
      templateMappings={...(recipe.templateMappings||{})};
      statementConfig={...statementConfig,...(recipe.statementConfig||{})};
      clearResult();render();
-   }catch(e){alert('Recipe適用不可: '+e.message);}
- });
+   }catch(e){alert(tr('Recipe適用不可: ')+e.message);}
+ }});
 }
 
 function render(){
