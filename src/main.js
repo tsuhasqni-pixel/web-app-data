@@ -563,7 +563,7 @@ function renderTaxSettings(parent){
      tax_rate:row.tax_rate,tax_amount:row.tax_amount,amount_ex_tax:row.amount_ex_tax,amount_in_tax:row.amount_in_tax,tax_rule:row.tax_rule,tax_status:row.tax_status
    }));
    el('h3',tr('税率計算プレビュー'),s);renderTable(s,preview,100);
-   renderOutputChoice(s,{title:'Data Shaper Tax Calculation Helper',filenameBase:'data-shaper-tax-helper',rows:objectRowsToRows(out.rows),note:reportDisclaimer});
+   renderOutputChoice(s,{title:'Data Shaper Tax Calculation Helper',filenameBase:'data-shaper-tax-helper',rows:objectRowsToRows(out.rows),note:tr(reportDisclaimer)});
  }catch(e){el('p','税率計算を停止しました: '+e.message,s,'error');}
 }
 function renderDepreciationHelper(parent){
@@ -580,7 +580,7 @@ function renderDepreciationHelper(parent){
  if(depreciationConfig.result){
    const rows=depreciationConfig.result.rows.map(x=>({[tr('年')]:x.year,[tr('期首簿価')]:x.opening_book_value,[tr('減価償却費')]:x.depreciation,[tr('期末簿価')]:x.closing_book_value}));
    renderTable(s,rows,100);
-   renderOutputChoice(s,{title:'Data Shaper Depreciation Helper',filenameBase:'data-shaper-depreciation-helper',rows:objectRowsToRows(rows),note:reportDisclaimer});
+   renderOutputChoice(s,{title:'Data Shaper Depreciation Helper',filenameBase:'data-shaper-depreciation-helper',rows:objectRowsToRows(rows),note:tr(reportDisclaimer)});
  }
 }
 
@@ -629,10 +629,10 @@ function renderStatementPreview(parent,agg,purpose){
  el('p','資産 '+agg.totals.assets.toLocaleString()+' / 負債 '+agg.totals.liabilities.toLocaleString()+' / 純資産 '+agg.totals.equity.toLocaleString(),s,'status');
  el('p',status,s,agg.totals.isBalanced?'status':'warning');
  renderOutputChoice(s,{
-   title:'Data Shaper '+purpose.proLabel,
+   title:'Data Shaper '+tr(purpose.proLabel),
    filenameBase:'data-shaper-'+purpose.id+'-statement-prep',
    rows:aggregationToRows(agg),
-   note:reportDisclaimer
+   note:tr(reportDisclaimer)
  });
  el('p',reportDisclaimer,s,'legal-note');
 }
@@ -676,10 +676,10 @@ function renderBalance(){
    renderTable(s,simple.categories.slice(0,5).map(x=>({分類:x.category,金額:x.amount})),5);
    const freeReport={...simple,categories:simple.categories.slice(0,5)};
    renderOutputChoice(s,{
-     title:'Data Shaper '+purpose.freeLabel,
+     title:'Data Shaper '+tr(purpose.freeLabel),
      filenameBase:'data-shaper-'+purpose.id+'-free-report',
-     rows:simpleReportToRows(freeReport,purpose.id),
-     note:reportDisclaimer
+     rows:simpleReportToRows(freeReport,purpose.id,{language:language()}),
+     note:tr(reportDisclaimer)
    });
    el('p','Freeでは上位5分類までを簡易出力します。法人・個人事業の正式な決算整理はProです。元ファイルはWorkerへ保存しません。',s,'status');
 
@@ -690,10 +690,10 @@ function renderBalance(){
    el('span',requiredTier==='pro'?'Pro':'Lite',detail,'plan-badge '+requiredTier);
    renderTable(detail,simple.categories.map(x=>({分類:x.category,金額:x.amount})),200);
    renderOutputChoice(detail,{
-     title:'Data Shaper '+purpose.proLabel,
+     title:'Data Shaper '+tr(purpose.proLabel),
      filenameBase:'data-shaper-'+purpose.id+'-'+requiredTier+'-report',
-     rows:simpleReportToRows(simple,purpose.id),
-     note:reportDisclaimer
+     rows:simpleReportToRows(simple,purpose.id,{language:language()}),
+     note:tr(reportDisclaimer)
    });
    el('p','前年データがない場合、比較率や前年比を推測して作りません。前年ファイルを追加できた場合だけ比較指標を計算する方針です。',detail,'status');
 
