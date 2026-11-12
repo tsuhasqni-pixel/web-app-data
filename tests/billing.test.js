@@ -170,6 +170,17 @@ describe('Data Shaper LIVE sale gates',()=>{
     aliasEnv.STRIPE_SECRET_KEY='sk_test_not_allowed';
     expect(billingConfig(aliasEnv).secretConfigured).toBe(false);
   });
+  it('skips an invalid canonical live key when a valid legacy live key also exists',()=>{
+    const duplicated={...liveEnv,
+      STRIPE_LIVE_SECRET_KEY:'not-a-live-secret',
+      STRIPE_SECRET_KEY:'sk_live_validfallback123'
+    };
+    const cfg=billingConfig(duplicated);
+    expect(cfg.secretConfigured).toBe(true);
+    expect(cfg.secretSource).toBe('STRIPE_SECRET_KEY');
+    expect(cfg.secretIssue).toBe(null);
+    expect(billingMissing(duplicated,'pro')).not.toContain('STRIPE_LIVE_SECRET_KEY');
+  });
   it('classifies live Stripe secret mistakes without exposing the value',()=>{
     expect(stripeSecretIssue('',{live:true})).toBe('missing');
     expect(stripeSecretIssue('pk_live_public123',{live:true})).toBe('publishable_key_not_secret');
