@@ -9,14 +9,34 @@ export const DATA_SHAPER_TIERS={
 function clean(v){return typeof v==='string'?v.trim():''}
 function isTestSecret(v){return /^(?:sk|rk)_test_[^\s=]+$/.test(v)}
 function isLiveSecret(v){return /^(?:sk|rk)_live_[^\s=]+$/.test(v)}
+function isKnownNonApiCredential(v){
+  return /^(?:pk_|whsec_|price_|prod_|bpc_|cs_|pi_|sub_|cus_)/.test(v);
+}
+function isLiveCredentialCandidate(v){
+  const x=clean(v);
+  if(!x||x.includes('=')||/\s/.test(x))return false;
+  if(/^(?:sk|rk)_test_/.test(x)||isKnownNonApiCredential(x))return false;
+  return true;
+}
+function liveCredentialRank(v){
+  const x=clean(v);
+  if(isLiveSecret(x))return 3;
+  if(isLiveCredentialCandidate(x))return 2;
+  return 0;
+}
 export function stripeSecretIssue(value,{live=false}={}){
   const v=clean(value);
   if(!v)return 'missing';
   if(v.includes('=')||/^(?:STRIPE_[A-Z_]+|DATA_SHAPER_[A-Z_]+)=/.test(v))return 'pasted_assignment';
   if(/^pk_(?:live|test)_/.test(v))return 'publishable_key_not_secret';
+  if(/^whsec_/.test(v))return 'webhook_secret_not_api_key';
+  if(/^price_/.test(v))return 'price_id_not_api_key';
+  if(/^prod_/.test(v))return 'product_id_not_api_key';
+  if(/^bpc_/.test(v))return 'portal_config_not_api_key';
   if(live&&/^(?:sk|rk)_test_/.test(v))return 'test_key_in_live';
   if(!live&&/^(?:sk|rk)_live_/.test(v))return 'live_key_in_test';
-  if(live&&!isLiveSecret(v))return 'invalid_live_secret_format';
+  if(live&&isLiveSecret(v))return null;
+  if(live&&isLiveCredentialCandidate(v))return 'unrecognized_format_verify_with_stripe';
   if(!live&&!isTestSecret(v))return 'invalid_test_secret_format';
   return null;
 }
@@ -54,14 +74,24 @@ function firstValid(entries,validator){
   }
   return firstNonEmpty;
 }
+function bestLiveCredential(entries){
+  let best={name:'',value:'',rank:0};
+  for(const [name,value] of entries){
+    const cleaned=clean(value);
+    const rank=liveCredentialRank(cleaned);
+    if(rank>best.rank)best={name,value:cleaned,rank};
+  }
+  if(best.rank>0)return {name:best.name,value:best.value};
+  return firstConfigured(entries);
+}
 export function billingConfig(env={}){
   const mode=billingMode(env),live=mode==='live';
   const secretEntry=live
-    ?firstValid([
+    ?bestLiveCredential([
       ['STRIPE_LIVE_SECRET_KEY',env.STRIPE_LIVE_SECRET_KEY],
       ['STRIPE_SECRET_KEY',env.STRIPE_SECRET_KEY],
       ['STRIPE_API_KEY',env.STRIPE_API_KEY]
-    ],isLiveSecret)
+    ])
     :firstValid([['STRIPE_TEST_SECRET_KEY',env.STRIPE_TEST_SECRET_KEY]],isTestSecret);
   const webhookEntry=live
     ?firstConfigured([
@@ -81,7 +111,7 @@ export function billingConfig(env={}){
     mode,live,
     enabled:env.DATA_SHAPER_BILLING_ENABLED==='true',
     secret,secretSource:secretEntry.name,secretIssue:stripeSecretIssue(secret,{live}),proPriceId,litePriceId,priceId:proPriceId,webhookSecret,webhookSource:webhookEntry.name,portalConfigId,origin,
-    secretConfigured:live?isLiveSecret(secret):isTestSecret(secret),
+    secretConfigured:live?isLiveCredentialCandidate(secret):isTestSecret(secret),
     proPriceConfigured:isPrice(proPriceId),
     litePriceConfigured:isPrice(litePriceId),
     priceConfigured:isPrice(proPriceId),
