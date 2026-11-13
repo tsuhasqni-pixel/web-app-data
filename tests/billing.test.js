@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {billingConfig,billingMissing,billingMode,createCheckoutSession,verifyStripeWebhook,validateTierPriceObject,stripeSecretIssue} from '../src/billing/stripe.js';
 import {subscriptionMatchesDataShaper,handleCheckout,handleWebhook} from '../src/billing/routes.js';
-import {capacityLimits} from '../src/billing/capacity.js';
+import {capacityLimits,ensureCapacityTable} from '../src/billing/capacity.js';
 
 const ORIGIN='https://data.example.com';
 const USER_ID='usr_12345678-1234-1234-1234-123456789abc';
@@ -49,6 +49,13 @@ describe('Data Shaper Stripe test configuration',()=>{
 describe('Launch capacity policy',()=>{
   it('keeps 50 percent launch headroom with 15 Lite and 10 Pro paid slots',()=>{
     expect(capacityLimits()).toEqual({lite:15,pro:10,total:25});
+  });
+  it('enforces one pending reservation per user and product',async()=>{
+    const sql=[];
+    const env={DB:{prepare(statement){sql.push(statement);return {async run(){return {success:true}}}}}};
+    await ensureCapacityTable(env);
+    expect(sql.join('\n')).toContain('CREATE UNIQUE INDEX IF NOT EXISTS capacity_reservations_user_product_unique');
+    expect(sql.join('\n')).toContain('(user_id,product_key)');
   });
 });
 
