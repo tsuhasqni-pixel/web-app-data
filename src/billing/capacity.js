@@ -25,6 +25,7 @@ export async function ensureCapacityTable(env){
   )`).run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS capacity_reservations_product ON capacity_reservations(product_key,expires_at)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS capacity_reservations_user ON capacity_reservations(user_id,product_key)').run();
+  await env.DB.prepare('CREATE UNIQUE INDEX IF NOT EXISTS capacity_reservations_user_product_unique ON capacity_reservations(user_id,product_key)').run();
 }
 
 async function cleanupExpired(env,now){
@@ -55,17 +56,25 @@ export async function reserveCapacity(env,{tier,userId,priceId,now}){
   const existing=await env.DB.prepare("SELECT stripe_subscription_id FROM stripe_entitlements WHERE user_id=? AND product_key=? AND stripe_price_id=? AND status IN ('active','trialing') LIMIT 1")
     .bind(userId,p.productKey,priceId||'').first();
   if(existing?.stripe_subscription_id)return {ok:false,reason:'already_subscribed',snapshot:await capacitySnapshot(env,{tier,priceId,now:ts})};
+  const prior=await env.DB.prepare('SELECT reservation_id,expires_at FROM capacity_reservations WHERE user_id=? AND product_key=? AND expires_at>? LIMIT 1')
+    .bind(userId,p.productKey,ts).first();
+  if(prior?.reservation_id)return {ok:true,reservationId:prior.reservation_id,expiresAt:Number(prior.expires_at)||ts+RESERVATION_TTL_SECONDS,reused:true,snapshot:await capacitySnapshot(env,{tier,priceId,now:ts})};
   const reservationId='cap_'+crypto.randomUUID();
   const expiresAt=ts+RESERVATION_TTL_SECONDS;
-  const result=await env.DB.prepare(`INSERT INTO capacity_reservations(reservation_id,user_id,product_key,tier,status,expires_at)
+  const result=await env.DB.prepare(`INSERT OR IGNORE INTO capacity_reservations(reservation_id,user_id,product_key,tier,status,expires_at)
     SELECT ?,?,?,?,'pending',?
     WHERE (
       (SELECT COUNT(*) FROM stripe_entitlements WHERE product_key=? AND stripe_price_id=? AND status IN ('active','trialing')) +
       (SELECT COUNT(*) FROM capacity_reservations WHERE product_key=? AND expires_at>?)
     ) < ?`)
     .bind(reservationId,userId,p.productKey,p.tier,expiresAt,p.productKey,priceId||'',p.productKey,ts,p.limit).run();
-  if(changes(result)===0)return {ok:false,reason:'capacity_full',snapshot:await capacitySnapshot(env,{tier,priceId,now:ts})};
-  return {ok:true,reservationId,expiresAt,snapshot:await capacitySnapshot(env,{tier,priceId,now:ts})};
+  if(changes(result)===0){
+    const raced=await env.DB.prepare('SELECT reservation_id,expires_at FROM capacity_reservations WHERE user_id=? AND product_key=? AND expires_at>? LIMIT 1')
+      .bind(userId,p.productKey,ts).first();
+    if(raced?.reservation_id)return {ok:true,reservationId:raced.reservation_id,expiresAt:Number(raced.expires_at)||expiresAt,reused:true,snapshot:await capacitySnapshot(env,{tier,priceId,now:ts})};
+    return {ok:false,reason:'capacity_full',snapshot:await capacitySnapshot(env,{tier,priceId,now:ts})};
+  }
+  return {ok:true,reservationId,expiresAt,reused:false,snapshot:await capacitySnapshot(env,{tier,priceId,now:ts})};
 }
 
 export async function releaseCapacityReservation(env,reservationId){
