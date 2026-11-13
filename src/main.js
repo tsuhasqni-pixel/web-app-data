@@ -34,7 +34,7 @@ let statementConfig={accountField:'account_name',amountField:'amount',debitField
 let selectedBatchSheets=new Set(),batchResults=[];
 let batchOptions={trim:true,width:true,removeExactDuplicates:false};
 let authState={loaded:false,loading:false,authenticated:false,user:null,entitlement:{tier:'free',pro:false,source:'stripe',reason:'not_authenticated'}};
-let billingState={loaded:false,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,saleReady:false,mode:'test',missing:[],proMissing:[],liteMissing:[]};
+let billingState={loaded:false,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,saleReady:false,mode:'test',missing:[],proMissing:[],liteMissing:[],capacity:{lite:{limit:15,remaining:null,sold_out:false},pro:{limit:10,remaining:null,sold_out:false}}};
 let legalConsent={lite:false,pro:false};
 
 function el(tag,text,parent,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;(parent||app).appendChild(e);return e;}
@@ -67,10 +67,11 @@ async function refreshBilling(){
      mode,
      missing:Array.isArray(data.missing)?data.missing:[],
      proMissing:Array.isArray(data.pro_missing)?data.pro_missing:[],
-     liteMissing:Array.isArray(data.lite_missing)?data.lite_missing:[]
+     liteMissing:Array.isArray(data.lite_missing)?data.lite_missing:[],
+     capacity:data.capacity||{lite:{limit:15,remaining:null,sold_out:false},pro:{limit:10,remaining:null,sold_out:false}}
    };
  }catch{
-   billingState={loaded:true,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,saleReady:false,mode:'test',missing:['status_unavailable'],proMissing:['status_unavailable'],liteMissing:['status_unavailable']};
+   billingState={loaded:true,loading:false,enabled:false,ready:false,proReady:false,liteReady:false,saleReady:false,mode:'test',missing:['status_unavailable'],proMissing:['status_unavailable'],liteMissing:['status_unavailable'],capacity:{lite:{limit:15,remaining:null,sold_out:false},pro:{limit:10,remaining:null,sold_out:false}}};
  }
  render();
 }
@@ -84,7 +85,7 @@ async function startCheckout(tier='pro'){
      body:JSON.stringify({tier,accept_terms:true})
    });
    const data=await res.json();
-   if(!res.ok||!data?.url)throw new Error(data?.error||'checkout_failed');
+   if(!res.ok||!data?.url){const code=data?.error||'checkout_failed';if(code==='capacity_full')throw new Error(tr('初期販売枠が満員です。解約等で枠が空くまで新規受付を停止しています。'));if(code==='already_subscribed')throw new Error(tr('すでに同じ有料プランを契約中です。'));throw new Error(code);}
    location.assign(data.url);
  }catch(e){alert((billingState.mode==='live'?tr('決済を開始できませんでした: '):tr('TEST決済を開始できませんでした: '))+e.message);}
 }
@@ -125,6 +126,15 @@ function currentTier(){
 function hasTier(required){return authState.loaded&&authState.authenticated&&planRank[currentTier()]>=planRank[required];}
 function liteAuthorized(){return hasTier('lite');}
 function proAuthorized(){return hasTier('pro');}
+function capacityFor(tier){
+ const fallback=tier==='lite'?{limit:15,remaining:null,sold_out:false}:{limit:10,remaining:null,sold_out:false};
+ return billingState.capacity?.[tier]||fallback;
+}
+function capacityLabel(tier){
+ const cap=capacityFor(tier),name=tier==='lite'?'Lite':'Pro';
+ if(billingState.mode==='live'&&Number.isInteger(cap.remaining))return cap.sold_out?`${name} 初期枠: 満員（${cap.limit}枠）`:`${name} 初期枠: 残り ${cap.remaining} / ${cap.limit}`;
+ return `${name} 初期販売枠: ${cap.limit}名`;
+}
 function renderPlanOverview(){
  const s=section('料金プラン');
  const grid=el('div',undefined,s,'plan-grid');
@@ -138,6 +148,7 @@ function renderPlanOverview(){
    el('strong',plan.name,card);
    el('span',plan.price,card,'plan-price');
    el('p',plan.copy,card);
+   if(plan.className==='lite'||plan.className==='pro')el('small',capacityLabel(plan.className),card,'status');
  });
  el('p','お客様の支払総額は Free ¥0 / Lite 月額¥480 / Pro 月額¥980 です。Stripe Taxによる追加課税は前提にせず、事業者側の税務・会計処理とは分離します。',s,'status');
 }
@@ -156,9 +167,10 @@ function renderProLocked(){
     }else if(billingState.proReady){
       const live=billingState.mode==='live';
       el('p',live?'Pro ¥980 / 月額自動更新。最終支払額はStripe Checkoutで確認してください。':'現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
+      const cap=capacityFor('pro');if(live)el('p',capacityLabel('pro'),s,cap.sold_out?'warning':'status');
       renderLegalConsent(s,'pro');
       const b=button((live?'':'TEST ')+'Proを開始（月額 ¥980）',()=>startCheckout('pro'),s);
-      b.disabled=legalConsent.pro!==true;
+      b.disabled=legalConsent.pro!==true||(live&&cap.sold_out===true);
     }else{
       el('p',billingState.mode==='live'?'販売開始条件の確認が完了していないため、購入を停止しています。':'Stripe TEST決済は準備中です。',s,'status');
     }
@@ -638,9 +650,10 @@ function renderInlinePaidGate(parent,requiredTier){
  if(ready){
    const live=billingState.mode==='live';
    el('p',live?label+' '+price+' / 月額自動更新。最終支払額はStripe Checkoutで確認してください。':'現在はStripe TEST環境です。実際の請求は発生しません。',s,'status');
+   const cap=capacityFor(requiredTier);if(live)el('p',capacityLabel(requiredTier),s,cap.sold_out?'warning':'status');
    renderLegalConsent(s,requiredTier);
    const b=button((live?'': 'TEST ')+label+'を開始（'+price+'）',()=>startCheckout(requiredTier),s);
-   b.disabled=legalConsent[requiredTier]!==true;
+   b.disabled=legalConsent[requiredTier]!==true||(live&&cap.sold_out===true);
  }else{
    el('p',billingState.mode==='live'?'販売開始条件の確認が完了していないため、購入を停止しています。':'Stripe TEST決済は準備中です。',s,'pro-note');
  }
