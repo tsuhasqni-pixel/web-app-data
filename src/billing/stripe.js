@@ -215,7 +215,7 @@ export async function verifyStripeAccount(env,{fetchImpl=fetch}={}){
   };
 }
 
-export async function createCheckoutSession({env,userId,email,customerId,tier='pro',legalVersion='',acceptedAt=null,fetchImpl=fetch}){
+export async function createCheckoutSession({env,userId,email,customerId,tier='pro',legalVersion='',acceptedAt=null,reservationId='',fetchImpl=fetch}){
   const c=billingConfig(env);
   if(!c.enabled)throw new Error('billing_disabled');
   const plan=tierBillingConfig(env,tier);
@@ -237,9 +237,11 @@ export async function createCheckoutSession({env,userId,email,customerId,tier='p
     'metadata[tier]':tier,
     'metadata[legal_version]':legalVersion,
     'metadata[legal_accepted_at]':acceptedAt?String(acceptedAt):'',
+    'metadata[capacity_reservation_id]':reservationId,
     'subscription_data[metadata][data_shaper_user_id]':userId,
     'subscription_data[metadata][product_key]':plan.productKey,
-    'subscription_data[metadata][tier]':tier
+    'subscription_data[metadata][tier]':tier,
+    'subscription_data[metadata][capacity_reservation_id]':reservationId
   };
   if(customerId)params.customer=customerId;
   else if(email)params.customer_email=email;

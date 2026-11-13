@@ -2,6 +2,7 @@ import {googleConfig} from '../auth/google.js';
 import {readSession} from '../auth/session.js';
 import {getUserIdentity,getStripeCustomerLink,getUserIdByStripeCustomer,upsertStripeCustomerLink,upsertStripeEntitlement} from '../auth/store.js';
 import {LEGAL_VERSION} from '../legal.js';
+import {capacityLimits,capacitySnapshot,reserveCapacity,releaseCapacityReservation,claimCapacityReservation,releaseUserProductReservations} from './capacity.js';
 import {
   billingConfig,billingMissing,billingMode,expectedLivemode,
   createCheckoutSession,createPortalSession,tierBillingConfig,
@@ -88,6 +89,21 @@ export async function handleBillingStatus(_request,env){
   const proReady=c.enabled&&proMissing.length===0&&liveExternalReady&&db.schema_ready;
   const liteReady=c.enabled&&liteMissing.length===0&&liveExternalReady&&db.schema_ready;
   const saleGateReady=c.live&&proReady&&liteReady&&db.webhook_backlog===0;
+  const limits=capacityLimits();
+  let capacity={
+    lite:{tier:'lite',limit:limits.lite,active:null,reserved:null,used:null,remaining:null,sold_out:false},
+    pro:{tier:'pro',limit:limits.pro,active:null,reserved:null,used:null,remaining:null,sold_out:false},
+    reserve_policy:'50_percent_headroom_from_50_concurrent_probe'
+  };
+  if(c.live&&db.schema_ready){
+    try{
+      const [liteCap,proCap]=await Promise.all([
+        capacitySnapshot(env,{tier:'lite',priceId:c.litePriceId}),
+        capacitySnapshot(env,{tier:'pro',priceId:c.proPriceId})
+      ]);
+      capacity={lite:liteCap,pro:proCap,reserve_policy:'50_percent_headroom_from_50_concurrent_probe'};
+    }catch{}
+  }
   return json({
     provider:'stripe',mode,
     billing_enabled:c.enabled,
@@ -112,6 +128,7 @@ export async function handleBillingStatus(_request,env){
     pro_ready_for_test:!c.live&&proReady,
     lite_ready_for_test:!c.live&&liteReady,
     sale_gate_ready:saleGateReady,
+    capacity,
     live_verification:live,
     missing:proMissing,
     pro_missing:proMissing,
@@ -131,14 +148,28 @@ export async function handleCheckout(request,env,deps={}){
   const user=await authenticatedUser(request,env);
   if(!user)return json({error:'authentication_required'},401);
   const customer=await getStripeCustomerLink(env,user.userId);
+  let reservation=null;
+  if(c.live){
+    const plan=tierBillingConfig(env,tier);
+    try{reservation=await reserveCapacity(env,{tier,userId:user.userId,priceId:plan.priceId});}
+    catch{return json({error:'capacity_check_failed',tier},503)}
+    if(!reservation.ok){
+      return json({
+        error:reservation.reason==='already_subscribed'?'already_subscribed':'capacity_full',
+        tier,capacity:reservation.snapshot||null
+      },409);
+    }
+  }
   try{
     const session=await createCheckoutSession({
       env,userId:user.userId,email:user.email,customerId:customer?.stripe_customer_id||'',tier,
       legalVersion:LEGAL_VERSION,acceptedAt:Math.floor(Date.now()/1000),
+      reservationId:reservation?.reservationId||'',
       fetchImpl:deps.fetchImpl||fetch
     });
-    return json(session);
+    return json({...session,capacity:reservation?.snapshot||null});
   }catch(e){
+    if(reservation?.reservationId)try{await releaseCapacityReservation(env,reservation.reservationId)}catch{}
     const reason=String(e?.message||e).slice(0,160);
     return json({error:'stripe_checkout_failed',tier,mode:c.mode,reason},502);
   }
@@ -178,6 +209,8 @@ async function persistCheckoutAcceptance(env,obj){
   const acceptedAt=Number(obj.metadata?.legal_accepted_at);
   if(!/^usr_[0-9a-f-]{36}$/i.test(userId)||!/^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(sessionId))return;
   if(!legalVersion||!Number.isInteger(acceptedAt)||acceptedAt<=0)return;
+  const reservationId=String(obj.metadata?.capacity_reservation_id||'');
+  if(reservationId)await claimCapacityReservation(env,{reservationId,userId,productKey});
   await env.DB.prepare(`INSERT OR IGNORE INTO checkout_acceptances
     (stripe_checkout_session_id,stripe_customer_id,stripe_subscription_id,user_id,product_key,tier,legal_version,accepted_at,livemode)
     VALUES(?,?,?,?,?,?,?,?,?)`)
@@ -207,6 +240,7 @@ async function applyWebhookEvent(env,event){
     const status=String(obj.status||'unknown');
     if(customerId)await upsertStripeCustomerLink(env,userId,customerId);
     if(obj.id&&customerId)await upsertStripeEntitlement(env,{subscriptionId:obj.id,userId,customerId,productKey,priceId,status});
+    if(['active','trialing'].includes(status))await releaseUserProductReservations(env,{userId,productKey});
   }
 }
 async function startWebhookEvent(env,event){

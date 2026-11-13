@@ -1,6 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {billingConfig,billingMissing,billingMode,createCheckoutSession,verifyStripeWebhook,validateTierPriceObject,stripeSecretIssue} from '../src/billing/stripe.js';
 import {subscriptionMatchesDataShaper,handleCheckout,handleWebhook} from '../src/billing/routes.js';
+import {capacityLimits} from '../src/billing/capacity.js';
 
 const ORIGIN='https://data.example.com';
 const USER_ID='usr_12345678-1234-1234-1234-123456789abc';
@@ -42,6 +43,12 @@ describe('Data Shaper Stripe test configuration',()=>{
     expect(missing).toEqual(expect.arrayContaining([
       'STRIPE_TEST_SECRET_KEY','DATA_SHAPER_STRIPE_TEST_PRICE_ID','DATA_SHAPER_STRIPE_WEBHOOK_SECRET','DB'
     ]));
+  });
+});
+
+describe('Launch capacity policy',()=>{
+  it('keeps 50 percent launch headroom with 15 Lite and 10 Pro paid slots',()=>{
+    expect(capacityLimits()).toEqual({lite:15,pro:10,total:25});
   });
 });
 
@@ -209,7 +216,7 @@ describe('Data Shaper LIVE sale gates',()=>{
     const calls=[];
     const goodPrice={livemode:true,active:true,currency:'jpy',unit_amount:980,recurring:{interval:'month',interval_count:1},product:{active:true,metadata:{app:'data-shaper',tier:'pro'}}};
     const out=await createCheckoutSession({
-      env:liveEnv,userId:USER_ID,email:'user@example.com',tier:'pro',legalVersion:'2026-11-12',acceptedAt:1700000000,
+      env:liveEnv,userId:USER_ID,email:'user@example.com',tier:'pro',legalVersion:'2026-11-12',acceptedAt:1700000000,reservationId:'cap_12345678-1234-1234-1234-123456789abc',
       fetchImpl:async(url,init)=>{
         calls.push({url,init});
         if(init.method==='GET')return new Response(JSON.stringify(goodPrice),{status:200,headers:{'content-type':'application/json'}});
@@ -223,6 +230,8 @@ describe('Data Shaper LIVE sale gates',()=>{
     expect(body.get('line_items[0][price]')).toBe('price_livepro123');
     expect(body.get('metadata[legal_version]')).toBe('2026-11-12');
     expect(body.get('metadata[legal_accepted_at]')).toBe('1700000000');
+    expect(body.get('metadata[capacity_reservation_id]')).toBe('cap_12345678-1234-1234-1234-123456789abc');
+    expect(body.get('subscription_data[metadata][capacity_reservation_id]')).toBe('cap_12345678-1234-1234-1234-123456789abc');
   });
 });
 
