@@ -8,7 +8,7 @@ function plan(tier){
   if(tier==='pro')return {tier:'pro',productKey:'data-shaper-pro',limit:LIMITS.pro};
   throw new Error('invalid_capacity_tier');
 }
-function changes(result){return Number(result?.meta?.changes??result?.changes??0)||0}
+function changes(result){const raw=result?.meta?.changes??result?.changes;return raw===undefined||raw===null?null:Number(raw)||0}
 
 export function capacityLimits(){return {...LIMITS,total:LIMITS.lite+LIMITS.pro}}
 
@@ -64,7 +64,7 @@ export async function reserveCapacity(env,{tier,userId,priceId,now}){
       (SELECT COUNT(*) FROM capacity_reservations WHERE product_key=? AND expires_at>?)
     ) < ?`)
     .bind(reservationId,userId,p.productKey,p.tier,expiresAt,p.productKey,priceId||'',p.productKey,ts,p.limit).run();
-  if(changes(result)<1)return {ok:false,reason:'capacity_full',snapshot:await capacitySnapshot(env,{tier,priceId,now:ts})};
+  if(changes(result)===0)return {ok:false,reason:'capacity_full',snapshot:await capacitySnapshot(env,{tier,priceId,now:ts})};
   return {ok:true,reservationId,expiresAt,snapshot:await capacitySnapshot(env,{tier,priceId,now:ts})};
 }
 
