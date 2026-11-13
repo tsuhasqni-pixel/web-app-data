@@ -1,87 +1,129 @@
-# Data Shaper — Owner Launch Handoff 2026-11-12
+# Data Shaper — Owner Launch Handoff
 
-## Current state
+更新: 2026-11-13
 
-Status: SALE_RC / LIVE OFF
+## 現在の状態
 
-Created in Stripe LIVE:
-- Lite Product: prod_Vc9LJeugC9FABc
-- Lite Price: price_1Uav2zBGa8rL8jwIJtqLaBJC — JPY 480/month
-- Pro Product: prod_Vc9MxlPOFViYQg
-- Pro Price: price_1Uav3IBGa8rL8jwIJcEFxAFI — JPY 980/month
-- Product statement descriptor: DATASHAPER
-- Portal config: bpc_1Uav4GBGa8rL8jwIqg24naP8
-- Portal login: https://billing.stripe.com/p/login/3cIbJ02U7gen5u6bhn93y01
-- Webhook endpoint: we_1Uav4YBGa8rL8jwIomFuWnxK
-- Webhook URL: https://web-app-data.data-analist.workers.dev/api/billing/webhook
+Status: **CODE READY / PRODUCTION SECRET HOLD**
+
+販売コード・料金・法務導線・販売枠・Stripe LIVEオブジェクトは準備済みです。公開Workerは fail-closed で、現在は Cloudflare Production の `STRIPE_LIVE_SECRET_KEY` がStripe認証に失敗しているため新規購入を開始しません。
+
+公開確認先:
+- App: https://web-app-data.data-analist.workers.dev/
+- Readiness: https://web-app-data.data-analist.workers.dev/api/billing/status
+
+現在の公開Readinessで確認済み:
+- `mode=live`
+- billing / refund policy / live sale approval = true
+- D1 schema ready
+- webhook backlog = 0
+- Live Price / Portal / Webhook IDs configured
+- Launch capacity deployed
+  - Lite: **15**
+  - Pro: **10**
+- 現在の停止理由: Live Stripe API credential verification = FAIL
+- `ready_for_live=false` / `sale_gate_ready=false`
+
+## Stripe LIVE（作成・確認済み）
+
+- Lite Product: `prod_Vc9LJeugC9FABc`
+- Lite Price: `price_1Uav2zBGa8rL8jwIJtqLaBJC` — **JPY 480/month**
+- Pro Product: `prod_Vc9MxlPOFViYQg`
+- Pro Price: `price_1Uav3IBGa8rL8jwIJcEFxAFI` — **JPY 980/month**
+- Product statement descriptor: `DATASHAPER`
+- Portal config: `bpc_1Uav4GBGa8rL8jwIqg24naP8`
+- Webhook endpoint: `we_1Uav4YBGa8rL8jwIomFuWnxK`
+- Webhook URL: `https://web-app-data.data-analist.workers.dev/api/billing/webhook`
+
+Stripe account:
+- charges enabled
+- payouts enabled
+- details submitted
 
 Customer totals:
 - Free: JPY 0
 - Lite: JPY 480/month
 - Pro: JPY 980/month
-- Operator status supplied by owner: consumption-tax exempt operator
-- Stripe Tax automatic add-on: not used
-
-## Owner-only actions
-
-### 1. Cloudflare Production secrets
-Open the Data Shaper Worker production settings and set:
-- STRIPE_LIVE_SECRET_KEY
-- DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET
-- GOOGLE_OAUTH_CLIENT_SECRET
-- SESSION_SECRET
-
-Do not paste secret values into GitHub, README, Issues, PRs, or chat.
-
-Non-secret IDs are already wired in wrangler.jsonc:
-- DATA_SHAPER_STRIPE_LIVE_LITE_PRICE_ID
-- DATA_SHAPER_STRIPE_LIVE_PRO_PRICE_ID
-- DATA_SHAPER_STRIPE_LIVE_PORTAL_CONFIG_ID
-
-Keep these OFF for now:
-- DATA_SHAPER_LIVE_BILLING_ENABLED=false
-- DATA_SHAPER_REFUND_POLICY_CONFIRMED=false
-- DATA_SHAPER_LIVE_SALE_APPROVED=false
-
-### 2. Google OAuth
-Production callback must match:
-https://web-app-data.data-analist.workers.dev/api/auth/google/callback
-
-### 3. Confirm published cancellation/refund policy
-Current policy:
 - monthly auto-renewal
-- cancellation at period end
-- no normal prorated refund for user-initiated mid-period cancellation
-- billing errors / duplicate charges / legally required cases handled separately
+- cancel at period end
+- no ordinary prorated refund for user-requested mid-period cancellation
+- duplicate/incorrect charge, serious service-side payment issue, and legally required cases are handled separately
 
-After owner confirmation, DATA_SHAPER_REFUND_POLICY_CONFIRMED may be set true.
+## Launch capacity / Cloudflare free-tier guard
 
-### 4. Final real-card E2E
-Only after readiness is green:
-1. enable LIVE billing temporarily for the owner test
-2. purchase Lite once
-3. verify Lite entitlement
-4. purchase/upgrade to Pro only if needed for the test plan
-5. verify Pro entitlement
-6. open Customer Portal
-7. set cancellation at period end
-8. confirm webhook backlog is zero
-9. confirm entitlement lifecycle
-10. record final SHA, Cloudflare Version ID, Stripe Customer/Subscription IDs
+File parsing and analysis stay **Local First** in the browser. Customer CSV/XLSX data is not uploaded for server-side analysis.
 
-### 5. Public sale switch
-Only after the real-card E2E passes:
-- DATA_SHAPER_REFUND_POLICY_CONFIRMED=true
-- DATA_SHAPER_LIVE_SALE_APPROVED=true
-- DATA_SHAPER_LIVE_BILLING_ENABLED=true
+Initial paid admission:
+- Lite: 15
+- Pro: 10
+- total paid launch slots: 25
 
-## Assistant-owned work already completed
-- code/security/file-processing audit
-- Japanese/English UI audit
-- generic self-employed/freelancer reporting
-- Stripe LIVE Lite/Pro products and prices
-- Portal config
-- Webhook endpoint
-- GitHub/Cloudflare sale RC gates
-- legal/commerce/billing pages
-- price display confirmation
+The remaining headroom is reserved for Free traffic, OAuth, Stripe Webhooks, D1 operations, traffic spikes, and operational margin.
+
+Capacity behavior:
+- only LIVE paid subscriptions consume launch slots
+- pending Checkout reserves a slot for 30 minutes
+- one user cannot consume multiple pending slots for the same plan
+- failed Checkout releases its reservation
+- active/trialing subscription becomes authoritative
+- when full, **new Checkout stops but existing subscribers keep access**
+
+## Owner-only action
+
+### 1. Replace the invalid Cloudflare Production Stripe API credential
+
+Set a valid Stripe LIVE backend API credential in:
+
+- `STRIPE_LIVE_SECRET_KEY`
+
+Do not paste the value into GitHub, README, Issues, PRs, logs, or chat.
+
+The current variable exists, but the deployed Worker cannot authenticate it against Stripe. Replace the value rather than adding another guessed alias.
+
+Also leave the existing live webhook secret configured:
+- `DATA_SHAPER_STRIPE_LIVE_WEBHOOK_SECRET`
+
+No Stripe Product/Price/Portal/Webhook recreation is required.
+
+### 2. Deploy the latest main to the Production Worker
+
+After the secret is corrected, deploy the latest `main`.
+
+Latest pre-sale hardening includes:
+- Lite 15 / Pro 10 capacity
+- one pending reservation per user/product
+- fail-closed Stripe verification
+- existing-subscriber continuity
+
+### 3. Verify the public readiness endpoint
+
+Do not start public sales until all of these are true:
+
+- `ready_for_live=true`
+- `sale_gate_ready=true`
+- `pro_ready=true`
+- `lite_ready=true`
+- `live_verification.pro.verified=true`
+- `live_verification.lite.verified=true`
+- account `charges_enabled=true`
+- account `payouts_enabled=true`
+- account `details_submitted=true`
+- `webhook_backlog=0`
+- capacity shows Lite 15 / Pro 10
+
+## Real-card test policy
+
+The owner-approved self-purchase requirement is **waived**. Do not spend money only to prove the owner's own subscription lifecycle.
+
+Instead:
+- Stripe LIVE objects are verified independently
+- public readiness must be green
+- Checkout remains fail-closed until that point
+- the first real customer transaction is monitored as production validation:
+  Checkout → Subscription → Webhook → entitlement → Portal
+
+## SALE READY definition
+
+Data Shaper is SALE_READY only when the **public Production endpoint** reports the complete live gate as green. Code/CI success alone is not enough.
+
+Secret values must never be committed.
